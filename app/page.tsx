@@ -1,18 +1,24 @@
-// ✅ この1行を必ず入れる：クエリパラメータを使うので、ページを強制的に動的にする
+// app/page.tsx
+
+// ✅ この1行で「このページは毎回動的にレンダリングする」と宣言
 export const dynamic = 'force-dynamic';
 
-type SearchParams = {
-  employee_id?: string;
-  user_id?: string;
-};
+interface PageProps {
+  searchParams?: {
+    [key: string]: string | string[] | undefined;
+  };
+}
 
-export default function Home({
-  searchParams,
-}: {
-  searchParams?: SearchParams;
-}) {
-  const employeeId = searchParams?.employee_id ?? '(未指定)';
-  const userId = searchParams?.user_id ?? '(未指定)';
+export default function Page({ searchParams }: PageProps) {
+  const employeeId =
+    typeof searchParams?.employee_id === 'string'
+      ? searchParams.employee_id
+      : '(未指定)';
+
+  const userId =
+    typeof searchParams?.user_id === 'string'
+      ? searchParams.user_id
+      : '(未指定)';
 
   return (
     <main style={{ padding: '24px' }}>
