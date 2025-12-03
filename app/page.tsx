@@ -2,24 +2,30 @@
 
 type PageProps = {
   searchParams?: {
-    employee_id?: string;
-    user_id?: string;
-  };
-};
+    employee_id?: string | string[]
+    user_id?: string | string[]
+  }
+}
 
 export default function Home({ searchParams }: PageProps) {
-  const employeeId = searchParams?.employee_id ?? "(未指定)";
-  const userId = searchParams?.user_id ?? "(未指定)";
+  // クエリパラメータ取得（なければ「(未指定)」）
+  const rawEmployeeId = searchParams?.employee_id
+  const rawUserId = searchParams?.user_id
+
+  const employeeId =
+    typeof rawEmployeeId === "string" ? rawEmployeeId : "(未指定)"
+  const userId = typeof rawUserId === "string" ? rawUserId : "(未指定)"
 
   return (
-    <main style={{ padding: "24px", fontFamily: "system-ui, sans-serif" }}>
+    <main style={{ padding: "24px" }}>
       <h1>WorkTalk スケジューラー（仮）</h1>
+
       <p>employee_id: {employeeId}</p>
       <p>user_id: {userId}</p>
 
-      <hr style={{ margin: "24px 0" }} />
+      <hr />
 
       <p>ここにあとでカレンダーUIを作っていく予定です。</p>
     </main>
-  );
+  )
 }
