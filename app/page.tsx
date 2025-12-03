@@ -1,4 +1,5 @@
-// app/page.tsx
+// 🔴 これを必ず先頭に追加
+export const dynamic = "force-dynamic";
 
 type PageProps = {
   searchParams?: {
@@ -8,13 +9,13 @@ type PageProps = {
 }
 
 export default function Home({ searchParams }: PageProps) {
-  // クエリパラメータ取得（なければ「(未指定)」）
   const rawEmployeeId = searchParams?.employee_id
   const rawUserId = searchParams?.user_id
 
   const employeeId =
     typeof rawEmployeeId === "string" ? rawEmployeeId : "(未指定)"
-  const userId = typeof rawUserId === "string" ? rawUserId : "(未指定)"
+  const userId =
+    typeof rawUserId === "string" ? rawUserId : "(未指定)"
 
   return (
     <main style={{ padding: "24px" }}>
