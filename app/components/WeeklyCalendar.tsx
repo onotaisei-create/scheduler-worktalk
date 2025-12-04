@@ -10,115 +10,89 @@ type WeeklyCalendarProps = {
 };
 
 const VISIBLE_DAYS = 5;
+const TIME_SLOTS = ["09:00", "13:00", "16:00", "18:00", "19:00", "20:00"];
 
-function formatDateLabel(date: Date) {
-  return date.toLocaleDateString("ja-JP", {
-    month: "numeric",
-    day: "numeric",
-    weekday: "short",
-  });
-}
+// 日付キー（YYYY-MM-DD）
+const dateKey = (d: Date) => d.toISOString().slice(0, 10);
 
-const timeSlots = ["09:00", "13:00", "16:00", "18:00", "19:00", "20:00"];
-
-const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
+export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
   employeeId,
   userId,
   embed,
 }) => {
-  const [startOffset, setStartOffset] = useState(0);
+  const [startDate, setStartDate] = useState<Date>(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  });
+
+  const days = useMemo(() => {
+    return Array.from({ length: VISIBLE_DAYS }, (_, i) => {
+      const d = new Date(startDate);
+      d.setDate(d.getDate() + i);
+      return d;
+    });
+  }, [startDate]);
+
   const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
 
-  const days = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    today.setDate(today.getDate() + startOffset);
-
-    const arr: Date[] = [];
-    for (let i = 0; i < VISIBLE_DAYS; i++) {
-      const d = new Date(today);
-      d.setDate(today.getDate() + i);
-      arr.push(d);
-    }
-    return arr;
-  }, [startOffset]);
-
+  // 日付＋時間が揃ったら親（Bubble）へ通知
   useEffect(() => {
-    if (days.length > 0) {
-      setSelectedDayKey(days[0].toDateString());
-      setSelectedTime(null);
+    if (!selectedDayKey || !selectedTime) return;
+
+    const [hour, minute] = selectedTime.split(":").map((v) => parseInt(v, 10));
+    const start = new Date(selectedDayKey);
+    start.setHours(hour, minute, 0, 0);
+
+    // とりあえず 1 時間固定
+    const end = new Date(start.getTime() + 60 * 60 * 1000);
+
+    const label = start.toLocaleString("ja-JP", {
+      month: "numeric",
+      day: "numeric",
+      weekday: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+
+    if (typeof window !== "undefined" && window.parent) {
+      window.parent.postMessage(
+        {
+          type: "WORKTALK_SCHEDULE_SELECTED",
+          label,
+          startIso: start.toISOString(),
+          endIso: end.toISOString(),
+          employeeId: employeeId ?? null,
+          userId: userId ?? null,
+        },
+        "*" // ← まずはゆるく許可。後で必要なら origin 絞る
+      );
     }
-  }, [days]);
+  }, [selectedDayKey, selectedTime, employeeId, userId]);
 
-  const selectedDate = useMemo(
-    () => days.find((d) => d.toDateString() === selectedDayKey) || null,
-    [days, selectedDayKey]
-  );
-
-  const selectedLabel =
-    selectedDate && selectedTime
-      ? `${formatDateLabel(selectedDate)} ${selectedTime}`
-      : "日付と時間を選択してください";
-
-  const handlePrev = () => {
-    setStartOffset((prev) => prev - VISIBLE_DAYS);
-  };
-
-  const handleNext = () => {
-    setStartOffset((prev) => prev + VISIBLE_DAYS);
-  };
-
-  const handleSelectDay = (day: Date) => {
-    setSelectedDayKey(day.toDateString());
+  const shiftDays = (diff: number) => {
+    setStartDate((prev) => {
+      const d = new Date(prev);
+      d.setDate(d.getDate() + diff);
+      return d;
+    });
+    setSelectedDayKey(null);
     setSelectedTime(null);
   };
 
-  // ★ ここで「日付＋時間が選ばれた」ときに親（Bubble）へ postMessage
   const handleSelectTime = (day: Date, slot: string) => {
-    setSelectedDayKey(day.toDateString());
+    setSelectedDayKey(dateKey(day));
     setSelectedTime(slot);
-
-    try {
-      const [h, m] = slot.split(":").map(Number);
-      const start = new Date(day);
-      start.setHours(h, m, 0, 0);
-
-      const end = new Date(start);
-      end.setMinutes(end.getMinutes() + 30); // とりあえず30分枠
-
-      const payload = {
-        employeeId,
-        userId,
-        dateLabel: formatDateLabel(day), // 例: "12/4(木)"
-        time: slot, // 例: "09:00"
-        startISO: start.toISOString(),
-        endISO: end.toISOString(),
-      };
-
-      if (typeof window !== "undefined" && window.parent) {
-        window.parent.postMessage(
-          {
-            type: "WT_SCHEDULE_SELECTED",
-            payload,
-          },
-          "*" // 必要ならここを work-talk.jp の origin に絞ってもOK
-        );
-      }
-    } catch (e) {
-      console.error("failed to postMessage schedule", e);
-    }
   };
 
   return (
     <section
       style={{
-        fontFamily:
-          "'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+        fontFamily: '"Noto Sans JP", system-ui, -apple-system, BlinkMacSystemFont',
         fontSize: 12,
-        maxWidth: "100%",
-        boxSizing: "border-box",
-        paddingBottom: embed ? 8 : 16,
+        color: "#333333",
       }}
     >
       {!embed && (
@@ -127,180 +101,186 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
             style={{
               fontSize: 14,
               fontWeight: 600,
-              margin: "0 0 8px",
+              marginBottom: 8,
             }}
           >
             WeeklyCalendar コンポーネント
           </h2>
-          <p style={{ fontSize: 11, margin: 0, marginBottom: 4 }}>
+          <p style={{ fontSize: 12, marginBottom: 4 }}>
             employeeId: {employeeId ?? "（なし）"} / userId:{" "}
             {userId ?? "（なし）"}
+          </p>
+          <p style={{ fontSize: 12, marginBottom: 16 }}>
+            選択中:{" "}
+            {selectedDayKey && selectedTime
+              ? "選択済み"
+              : "日付と時間を選択してください"}
           </p>
         </>
       )}
 
-      <p
-        style={{
-          margin: embed ? "0 0 8px" : "8px 0 8px",
-          fontSize: 12,
-        }}
-      >
-        選択中: <strong>{selectedLabel}</strong>
-      </p>
-
+      {/* カレンダー全体ラッパー */}
       <div
         style={{
-          display: "flex",
-          gap: 8,
-          alignItems: "center",
-          marginTop: 4,
+          width: embed ? "100%" : 640,
+          maxWidth: "100%",
+          margin: "0 auto",
         }}
       >
-        {/* ← ボタン */}
-        <button
-          type="button"
-          onClick={handlePrev}
-          style={{
-            flex: "0 0 32px",
-            width: 32,
-            height: 32,
-            borderRadius: 16,
-            border: "1px solid #e0e0e0",
-            backgroundColor: "#fff",
-            cursor: "pointer",
-            fontSize: 12,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          ←
-        </button>
-
-        {/* 日＋時間スロット */}
+        {/* 上のナビゲーション */}
         <div
           style={{
-            flex: 1,
             display: "flex",
-            overflowX: "hidden",
-            paddingBottom: 4,
+            justifyContent: "center",
+            alignItems: "center",
+            gap: 16,
+            marginBottom: 12,
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => shiftDays(-VISIBLE_DAYS)}
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: "16px",
+              border: "1px solid #e0e0e0",
+              backgroundColor: "#ffffff",
+              fontSize: 16,
+              cursor: "pointer",
+            }}
+          >
+            ←
+          </button>
+          <span style={{ fontSize: 12, color: "#666" }}>日付を選択</span>
+          <button
+            type="button"
+            onClick={() => shiftDays(VISIBLE_DAYS)}
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: "16px",
+              border: "1px solid #e0e0e0",
+              backgroundColor: "#ffffff",
+              fontSize: 16,
+              cursor: "pointer",
+            }}
+          >
+            →
+          </button>
+        </div>
+
+        {/* 日付のヘッダ */}
+        <div
+          style={{
+            display: "flex",
             justifyContent: "space-between",
+            gap: 8,
+            marginBottom: 12,
           }}
         >
           {days.map((day) => {
-            const isSelectedDay = day.toDateString() === selectedDayKey;
-            const weekdayLabel = day.toLocaleDateString("ja-JP", {
+            const dKey = dateKey(day);
+            const weekday = day.toLocaleDateString("ja-JP", {
               weekday: "short",
             });
             const dayNum = day.getDate();
+            const isSelected = dKey === selectedDayKey;
 
             return (
               <div
-                key={day.toISOString()}
+                key={dKey}
                 style={{
-                  flex: "0 0 19%",
-                  maxWidth: "20%",
+                  flex: 1,
                   display: "flex",
                   flexDirection: "column",
-                  alignItems: "stretch",
-                  gap: 6,
+                  alignItems: "center",
+                  gap: 4,
                 }}
               >
                 <div
                   style={{
-                    textAlign: "center",
-                    fontSize: 11,
-                    marginBottom: 2,
+                    fontSize: 12,
+                    color: "#666666",
                   }}
                 >
-                  {weekdayLabel}
+                  {weekday}
                 </div>
-
-                {/* 日付の丸 */}
                 <button
                   type="button"
-                  onClick={() => handleSelectDay(day)}
+                  onClick={() => {
+                    setSelectedDayKey(dKey);
+                    setSelectedTime(null);
+                  }}
                   style={{
                     width: 40,
                     height: 40,
-                    borderRadius: 9999,
-                    margin: "0 auto 4px",
-                    border: isSelectedDay
-                      ? "1px solid #1a73e8"
-                      : "1px solid #e0e0e0",
-                    backgroundColor: isSelectedDay ? "#1a73e8" : "#fff",
-                    color: isSelectedDay ? "#fff" : "#222",
-                    fontSize: 13,
+                    borderRadius: "20px",
+                    border: "1px solid #e0e0e0",
+                    backgroundColor: isSelected ? "#1a73e8" : "#ffffff",
+                    color: isSelected ? "#ffffff" : "#333333",
+                    fontSize: 14,
                     fontWeight: 500,
                     cursor: "pointer",
-                    boxShadow: isSelectedDay
-                      ? "0 0 0 1px rgba(26,115,232,0.2)"
-                      : "none",
                   }}
                 >
                   {dayNum}
                 </button>
-
-                {/* 時間スロット */}
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 4,
-                  }}
-                >
-                  {timeSlots.map((slot) => {
-                    const isSelectedTime =
-                      isSelectedDay && selectedTime === slot;
-                    return (
-                      <button
-                        key={slot}
-                        type="button"
-                        onClick={() => handleSelectTime(day, slot)}
-                        style={{
-                          width: "100%",
-                          padding: "4px 0",
-                          borderRadius: 9999,
-                          border: isSelectedTime
-                            ? "1px solid #1a73e8"
-                            : "1px solid #e0e0e0",
-                          backgroundColor: isSelectedTime ? "#1a73e8" : "#fff",
-                          color: isSelectedTime ? "#fff" : "#1a73e8",
-                          fontSize: 12,
-                          cursor: "pointer",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {slot}
-                      </button>
-                    );
-                  })}
-                </div>
               </div>
             );
           })}
         </div>
 
-        {/* → ボタン */}
-        <button
-          type="button"
-          onClick={handleNext}
+        {/* 時間ボタン一覧 */}
+        <div
           style={{
-            flex: "0 0 32px",
-            width: 32,
-            height: 32,
-            borderRadius: 16,
-            border: "1px solid #e0e0e0",
-            backgroundColor: "#fff",
-            cursor: "pointer",
-            fontSize: 12,
             display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
+            justifyContent: "space-between",
+            gap: 8,
           }}
         >
-          →
-        </button>
+          {days.map((day) => {
+            const dKey = dateKey(day);
+            const isSelectedDay = selectedDayKey === dKey;
+
+            return (
+              <div
+                key={dKey + "-times"}
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 8,
+                }}
+              >
+                {TIME_SLOTS.map((slot) => {
+                  const isSelected =
+                    isSelectedDay && selectedTime === slot;
+
+                  return (
+                    <button
+                      key={slot}
+                      type="button"
+                      onClick={() => handleSelectTime(day, slot)}
+                      style={{
+                        width: "100%",
+                        minHeight: 32,
+                        borderRadius: 16,
+                        border: "1px solid #e0e0e0",
+                        backgroundColor: isSelected ? "#e8f0fe" : "#ffffff",
+                        color: "#1a73e8",
+                        fontSize: 12,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {slot}
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </section>
   );
