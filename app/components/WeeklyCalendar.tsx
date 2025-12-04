@@ -9,7 +9,7 @@ type WeeklyCalendarProps = {
   embed?: boolean;
 };
 
-// 👉 ここを 5 日に
+// 表示する日数（5日固定）
 const VISIBLE_DAYS = 5;
 
 // 日付ラベル（例: 12/4(木)）
@@ -91,10 +91,10 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
         fontSize: 12,
         maxWidth: "100%",
         boxSizing: "border-box",
-        paddingBottom: embed ? 8 : 16, // 下が少し切れないように余白
+        paddingBottom: embed ? 8 : 16, // 下が切れないように少し余白
       }}
     >
-      {/* 埋め込みモードのときはシンプルなヘッダーに */}
+      {/* 埋め込みじゃないときだけヘッダー表示 */}
       {!embed && (
         <>
           <h2
@@ -128,21 +128,26 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
         style={{
           display: "flex",
           gap: 8,
-          alignItems: "stretch",
+          alignItems: "center", // ★ ボタンの高さが伸びないように
           marginTop: 4,
         }}
       >
-        {/* ← ボタン */}
+        {/* ← ボタン（小さめ丸ボタン） */}
         <button
           type="button"
           onClick={handlePrev}
           style={{
-            flex: "0 0 40px",
-            borderRadius: 20,
+            flex: "0 0 32px",
+            width: 32,
+            height: 32,
+            borderRadius: 16,
             border: "1px solid #e0e0e0",
             backgroundColor: "#fff",
             cursor: "pointer",
             fontSize: 12,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
           }}
         >
           ←
@@ -153,8 +158,7 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
           style={{
             flex: 1,
             display: "flex",
-            // 👉 横スクロールを消して、「5日だけ」に固定
-            overflowX: "hidden",
+            overflowX: "hidden", // 5日だけ表示
             paddingBottom: 4,
             justifyContent: "space-between",
           }}
@@ -170,7 +174,7 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
               <div
                 key={day.toISOString()}
                 style={{
-                  flex: "0 0 19%", // 5日でちょうど埋まるくらい
+                  flex: "0 0 19%", // 5列でちょうど埋まるくらい
                   maxWidth: "20%",
                   display: "flex",
                   flexDirection: "column",
@@ -257,17 +261,22 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
           })}
         </div>
 
-        {/* → ボタン */}
+        {/* → ボタン（小さめ丸ボタン） */}
         <button
           type="button"
           onClick={handleNext}
           style={{
-            flex: "0 0 40px",
-            borderRadius: 20,
+            flex: "0 0 32px",
+            width: 32,
+            height: 32,
+            borderRadius: 16,
             border: "1px solid #e0e0e0",
             backgroundColor: "#fff",
             cursor: "pointer",
             fontSize: 12,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
           }}
         >
           →
