@@ -9,7 +9,8 @@ type WeeklyCalendarProps = {
   embed?: boolean;
 };
 
-const VISIBLE_DAYS = 7;
+// 👉 ここを 5 日に
+const VISIBLE_DAYS = 5;
 
 // 日付ラベル（例: 12/4(木)）
 function formatDateLabel(date: Date) {
@@ -20,6 +21,7 @@ function formatDateLabel(date: Date) {
   });
 }
 
+// 時間スロット
 const timeSlots = ["09:00", "13:00", "16:00", "18:00", "19:00", "20:00"];
 
 const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
@@ -31,7 +33,7 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
   const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
 
-  // 表示する 7 日分の配列
+  // 表示する VISIBLE_DAYS 日分の配列
   const days = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -89,6 +91,7 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
         fontSize: 12,
         maxWidth: "100%",
         boxSizing: "border-box",
+        paddingBottom: embed ? 8 : 16, // 下が少し切れないように余白
       }}
     >
       {/* 埋め込みモードのときはシンプルなヘッダーに */}
@@ -145,14 +148,15 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
           ←
         </button>
 
-        {/* 日＋時間スロット（横スクロール対応） */}
+        {/* 日＋時間スロット（5日分） */}
         <div
           style={{
             flex: 1,
             display: "flex",
-            gap: 8,
-            overflowX: "auto",
+            // 👉 横スクロールを消して、「5日だけ」に固定
+            overflowX: "hidden",
             paddingBottom: 4,
+            justifyContent: "space-between",
           }}
         >
           {days.map((day) => {
@@ -166,11 +170,12 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
               <div
                 key={day.toISOString()}
                 style={{
-                  flex: "0 0 90px", // ポップアップ内でも収まるように少し細め
+                  flex: "0 0 19%", // 5日でちょうど埋まるくらい
+                  maxWidth: "20%",
                   display: "flex",
                   flexDirection: "column",
                   alignItems: "stretch",
-                  gap: 8,
+                  gap: 6,
                 }}
               >
                 {/* 曜日 */}
@@ -214,7 +219,7 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
                   style={{
                     display: "flex",
                     flexDirection: "column",
-                    gap: 6,
+                    gap: 4,
                   }}
                 >
                   {timeSlots.map((slot) => {
@@ -230,7 +235,7 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
                         }}
                         style={{
                           width: "100%",
-                          padding: "6px 0",
+                          padding: "4px 0",
                           borderRadius: 9999,
                           border: isSelectedTime
                             ? "1px solid #1a73e8"
