@@ -1,10 +1,12 @@
 // app/page.tsx
 "use client";
 
+import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import WeeklyCalendar from "./components/WeeklyCalendar";
 
-export default function Page() {
+// 実際の画面本体（useSearchParams を使う方）
+function PageContent() {
   const searchParams = useSearchParams();
 
   // URL の ?employee_id= / ?user_id= を取得
@@ -34,7 +36,7 @@ export default function Page() {
   }
 
   // ーーーーーーーーーーーーーーーー
-  //  通常モード（デバッグ用に残しておく）
+  //  通常モード（デバッグ用）
   // ーーーーーーーーーーーーーーーー
   return (
     <main style={{ padding: "24px" }}>
@@ -48,5 +50,14 @@ export default function Page() {
       {/* カレンダー本体 */}
       <WeeklyCalendar employeeId={employeeId} userId={userId} />
     </main>
+  );
+}
+
+// useSearchParams を使う PageContent 全体を Suspense で包む
+export default function Page() {
+  return (
+    <Suspense fallback={null}>
+      <PageContent />
+    </Suspense>
   );
 }
