@@ -1,29 +1,37 @@
 // app/page.tsx
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import WeeklyCalendar from "./components/WeeklyCalendar";
 
-export default function Page() {
-  const searchParams = useSearchParams();
+type Ids = {
+  employeeId?: string;
+  userId?: string;
+};
 
-  // URL から ?employee_id= と ?user_id= を取得
-  const employeeId = searchParams.get("employee_id") ?? undefined;
-  const userId = searchParams.get("user_id") ?? undefined;
+export default function Page() {
+  const [ids, setIds] = useState<Ids>({});
+
+  useEffect(() => {
+    // ブラウザの URL からクエリパラメータを読む
+    const params = new URLSearchParams(window.location.search);
+    const employeeId = params.get("employee_id") ?? undefined;
+    const userId = params.get("user_id") ?? undefined;
+
+    setIds({ employeeId, userId });
+  }, []);
 
   return (
     <main style={{ padding: "24px" }}>
       <h1>WorkTalk スケジューラー（仮）</h1>
       <p>ここにあとでカレンダーUIを作っていく予定です。</p>
 
-      {/* ページ側の表示 */}
-      <p>employee_id: {employeeId ?? "（未指定）"}</p>
-      <p>user_id: {userId ?? "（未指定）"}</p>
+      {/* ページの表示 */}
+      <p>employee_id: {ids.employeeId ?? "（未指定）"}</p>
+      <p>user_id: {ids.userId ?? "（未指定）"}</p>
 
       {/* WeeklyCalendar に渡す */}
-      <WeeklyCalendar employeeId={employeeId} userId={userId} />
+      <WeeklyCalendar employeeId={ids.employeeId} userId={ids.userId} />
     </main>
   );
 }
-
-
