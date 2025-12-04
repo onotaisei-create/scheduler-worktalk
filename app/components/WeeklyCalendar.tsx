@@ -12,7 +12,6 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
   employeeId,
   userId,
 }) => {
-  // 今日から7日分の日付を作る
   const today = new Date();
   const days: Date[] = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(today);
@@ -23,10 +22,9 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
   return (
     <section style={{ marginTop: "24px" }}>
       <h2>WeeklyCalendar コンポーネント</h2>
-      <p>employeeId: {employeeId ?? "（なし）"}</p>
-      <p>userId: {userId ?? "（なし）"}</p>
+      <p>employeeId: {employeeId ?? "(なし)"}</p>
+      <p>userId: {userId ?? "(なし)"}</p>
 
-      {/* とりあえず「日付だけ」の週間カレンダー */}
       <div
         style={{
           marginTop: "12px",
@@ -59,4 +57,3 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
 };
 
 export default WeeklyCalendar;
-
