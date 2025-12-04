@@ -9,10 +9,8 @@ type WeeklyCalendarProps = {
   embed?: boolean;
 };
 
-// 表示する日数（5日固定）
 const VISIBLE_DAYS = 5;
 
-// 日付ラベル（例: 12/4(木)）
 function formatDateLabel(date: Date) {
   return date.toLocaleDateString("ja-JP", {
     month: "numeric",
@@ -21,7 +19,6 @@ function formatDateLabel(date: Date) {
   });
 }
 
-// 時間スロット
 const timeSlots = ["09:00", "13:00", "16:00", "18:00", "19:00", "20:00"];
 
 const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
@@ -29,11 +26,10 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
   userId,
   embed,
 }) => {
-  const [startOffset, setStartOffset] = useState(0); // 何日後から表示するか
+  const [startOffset, setStartOffset] = useState(0);
   const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
 
-  // 表示する VISIBLE_DAYS 日分の配列
   const days = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -48,7 +44,6 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
     return arr;
   }, [startOffset]);
 
-  // 週が変わったら選択をリセット（先頭の日をデフォルト）
   useEffect(() => {
     if (days.length > 0) {
       setSelectedDayKey(days[0].toDateString());
@@ -79,8 +74,40 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
     setSelectedTime(null);
   };
 
-  const handleSelectTime = (slot: string) => {
+  // ★ ここで「日付＋時間が選ばれた」ときに親（Bubble）へ postMessage
+  const handleSelectTime = (day: Date, slot: string) => {
+    setSelectedDayKey(day.toDateString());
     setSelectedTime(slot);
+
+    try {
+      const [h, m] = slot.split(":").map(Number);
+      const start = new Date(day);
+      start.setHours(h, m, 0, 0);
+
+      const end = new Date(start);
+      end.setMinutes(end.getMinutes() + 30); // とりあえず30分枠
+
+      const payload = {
+        employeeId,
+        userId,
+        dateLabel: formatDateLabel(day), // 例: "12/4(木)"
+        time: slot, // 例: "09:00"
+        startISO: start.toISOString(),
+        endISO: end.toISOString(),
+      };
+
+      if (typeof window !== "undefined" && window.parent) {
+        window.parent.postMessage(
+          {
+            type: "WT_SCHEDULE_SELECTED",
+            payload,
+          },
+          "*" // 必要ならここを work-talk.jp の origin に絞ってもOK
+        );
+      }
+    } catch (e) {
+      console.error("failed to postMessage schedule", e);
+    }
   };
 
   return (
@@ -91,10 +118,9 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
         fontSize: 12,
         maxWidth: "100%",
         boxSizing: "border-box",
-        paddingBottom: embed ? 8 : 16, // 下が切れないように少し余白
+        paddingBottom: embed ? 8 : 16,
       }}
     >
-      {/* 埋め込みじゃないときだけヘッダー表示 */}
       {!embed && (
         <>
           <h2
@@ -113,7 +139,6 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
         </>
       )}
 
-      {/* 選択中の表示 */}
       <p
         style={{
           margin: embed ? "0 0 8px" : "8px 0 8px",
@@ -123,16 +148,15 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
         選択中: <strong>{selectedLabel}</strong>
       </p>
 
-      {/* ナビゲーション ＋ 日付の行 */}
       <div
         style={{
           display: "flex",
           gap: 8,
-          alignItems: "center", // ★ ボタンの高さが伸びないように
+          alignItems: "center",
           marginTop: 4,
         }}
       >
-        {/* ← ボタン（小さめ丸ボタン） */}
+        {/* ← ボタン */}
         <button
           type="button"
           onClick={handlePrev}
@@ -153,12 +177,12 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
           ←
         </button>
 
-        {/* 日＋時間スロット（5日分） */}
+        {/* 日＋時間スロット */}
         <div
           style={{
             flex: 1,
             display: "flex",
-            overflowX: "hidden", // 5日だけ表示
+            overflowX: "hidden",
             paddingBottom: 4,
             justifyContent: "space-between",
           }}
@@ -174,7 +198,7 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
               <div
                 key={day.toISOString()}
                 style={{
-                  flex: "0 0 19%", // 5列でちょうど埋まるくらい
+                  flex: "0 0 19%",
                   maxWidth: "20%",
                   display: "flex",
                   flexDirection: "column",
@@ -182,7 +206,6 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
                   gap: 6,
                 }}
               >
-                {/* 曜日 */}
                 <div
                   style={{
                     textAlign: "center",
@@ -233,10 +256,7 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
                       <button
                         key={slot}
                         type="button"
-                        onClick={() => {
-                          handleSelectDay(day);
-                          handleSelectTime(slot);
-                        }}
+                        onClick={() => handleSelectTime(day, slot)}
                         style={{
                           width: "100%",
                           padding: "4px 0",
@@ -261,7 +281,7 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
           })}
         </div>
 
-        {/* → ボタン（小さめ丸ボタン） */}
+        {/* → ボタン */}
         <button
           type="button"
           onClick={handleNext}
