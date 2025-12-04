@@ -20,12 +20,14 @@ const TIME_SLOTS = Array.from({ length: 12 }, (_, i) => {
 
 // 日付キー（YYYY-MM-DD）
 // 日付キー（YYYY-MM-DD）※ローカル時間ベースに修正
+// 日付キー (YYYY-MM-DD) ※ローカルタイム基準で1日ズレを防ぐ
 const dateKey = (d: Date) => {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return `${y}-${m}-${day}`;
 };
+
 
 export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
   employeeId,
@@ -50,39 +52,46 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
 
   // 日付＋時間が揃ったら親（Bubble）へ通知
-  useEffect(() => {
-    if (!selectedDayKey || !selectedTime) return;
+  // 日時 + 情報を親画面（Bubble）へ通知
+useEffect(() => {
+  if (!selectedDayKey || !selectedTime) return;
 
-    const [hour, minute] = selectedTime.split(":").map((v) => parseInt(v, 10));
-    const start = new Date(selectedDayKey);
-    start.setHours(hour, minute, 0, 0);
+  // 時刻（"09:00" みたいな文字列）を数値に
+  const [hour, minute] = selectedTime.split(":").map((v) => Number(v));
 
-    // とりあえず 1 時間固定
-    const end = new Date(start.getTime() + 60 * 60 * 1000);
+  // YYYY-MM-DD を分解して「ローカル日時」を作る
+  const [y, m, d] = selectedDayKey.split("-").map((v) => Number(v));
+  const start = new Date(y, m - 1, d, hour, minute, 0, 0); // ← ローカル基準
 
-    const label = start.toLocaleString("ja-JP", {
-      month: "numeric",
-      day: "numeric",
-      weekday: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
+  // ★ ここで必ず 1 時間固定イベントにする
+  const end = new Date(start.getTime() + 60 * 60 * 1000);
 
-    if (typeof window !== "undefined" && window.parent) {
-      window.parent.postMessage(
-        {
-          type: "WORKTALK_SCHEDULE_SELECTED",
-          label,
-          startIso: start.toISOString(),
-          endIso: end.toISOString(),
-          employeeId: employeeId ?? null,
-          userId: userId ?? null,
-        },
-        "*" // ← まずはゆるく許可。後で必要なら origin 絞る
-      );
-    }
-  }, [selectedDayKey, selectedTime, employeeId, userId]);
+  // ラベル（Bubble に表示する "12/7(日) 18:00" みたいな文字）
+  const label = start.toLocaleString("ja-JP", {
+    month: "numeric",
+    weekday: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+
+  // Bubble 側へ postMessage
+  if (typeof window !== "undefined" && window.parent) {
+    window.parent.postMessage(
+      {
+        type: "WORKTALK_SCHEDULE_SELECTED",
+        label,
+        startIso: start.toISOString(), // 例: 2025-12-07T09:00:00.000Z (JST 18:00)
+        endIso: end.toISOString(),     // 例: 2025-12-07T10:00:00.000Z (JST 19:00)
+        employeeId: employeeId ?? null,
+        userId: userId ?? null,
+      },
+      "*"
+    );
+  }
+}, [selectedDayKey, selectedTime, employeeId, userId]);
+
 
   const shiftDays = (diff: number) => {
     setStartDate((prev) => {
