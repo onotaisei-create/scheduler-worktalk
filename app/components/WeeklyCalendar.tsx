@@ -10,7 +10,13 @@ type WeeklyCalendarProps = {
 };
 
 const VISIBLE_DAYS = 5;
-const TIME_SLOTS = ["09:00", "13:00", "16:00", "18:00", "19:00", "20:00"];
+
+// 09:00〜20:00 を 1時間刻みで生成（9,10,...,20）
+const TIME_SLOTS = Array.from({ length: 12 }, (_, i) => {
+  const hour = 9 + i; // 9,10,...,20
+  return `${hour.toString().padStart(2, "0")}:00`;
+});
+
 
 // 日付キー（YYYY-MM-DD）
 // 日付キー（YYYY-MM-DD）※ローカル時間ベースに修正
