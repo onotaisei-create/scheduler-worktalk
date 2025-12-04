@@ -76,9 +76,11 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
   return (
     <section
       style={{
-        marginTop: embed ? 0 : 24,
+        marginTop: embed ? 0 : 16,
         fontFamily:
-          "-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif",
+          "'Noto Sans JP', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif",
+        maxWidth: "100%",
+        boxSizing: "border-box",
       }}
     >
       {/* 埋め込みじゃないときだけヘッダー表示 */}
@@ -86,14 +88,20 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
         <>
           <h2
             style={{
-              fontSize: 18,
+              fontSize: 14,
               fontWeight: 600,
-              marginBottom: 8,
+              marginBottom: 4,
             }}
           >
             WeeklyCalendar コンポーネント
           </h2>
-          <p style={{ fontSize: 12, color: "#555", marginBottom: 4 }}>
+          <p
+            style={{
+              fontSize: 11,
+              color: "#555",
+              marginBottom: 4,
+            }}
+          >
             employeeId: {employeeId ?? "（なし）"} / userId:{" "}
             {userId ?? "（なし）"}
           </p>
@@ -101,25 +109,25 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
       )}
 
       {/* 選択中の日時は埋め込みでも出す */}
-      <p style={{ fontSize: 14, marginTop: embed ? 0 : 8 }}>
+      <p style={{ fontSize: 13, marginTop: embed ? 0 : 4 }}>
         選択中: <strong>{selectedLabel}</strong>
       </p>
 
-      {/* カレンダー全体（横スクロール対応ラッパー） */}
+      {/* カレンダー全体（ポップアップ幅に合わせて縮む） */}
       <div
         style={{
-          marginTop: 16,
+          marginTop: 12,
           width: "100%",
-          overflowX: "auto",
-          paddingBottom: embed ? 8 : 0,
+          overflowX: "hidden",
         }}
       >
         <div
           style={{
             display: "flex",
             alignItems: "stretch",
-            gap: 16,
-            minWidth: 720, // 7列の最低幅。狭くしたければ 680 とかにしてもOK
+            gap: 8,
+            width: "100%",
+            boxSizing: "border-box",
           }}
         >
           {/* ←ボタン */}
@@ -133,12 +141,13 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
               type="button"
               onClick={() => shiftDays(-VISIBLE_DAYS)}
               style={{
-                width: 40,
-                height: 64,
-                borderRadius: 20,
+                width: 32,
+                height: 48,
+                borderRadius: 16,
                 border: "1px solid #e0e0e0",
                 backgroundColor: "#fff",
                 cursor: "pointer",
+                fontSize: 12,
               }}
             >
               {"<"}
@@ -161,18 +170,19 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
                 key={dayKey}
                 style={{
                   flex: 1,
+                  minWidth: 0, // ★ 幅が狭いポップアップでも縮む
                   display: "flex",
                   flexDirection: "column",
                   alignItems: "center",
-                  gap: 8,
+                  gap: 6,
                 }}
               >
                 {/* 曜日 */}
                 <div
                   style={{
-                    fontSize: 16,
+                    fontSize: 12,
                     fontWeight: 500,
-                    marginBottom: 4,
+                    marginBottom: 2,
                   }}
                 >
                   {weekday}
@@ -183,8 +193,8 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
                   type="button"
                   onClick={() => handleSelectDay(day)}
                   style={{
-                    width: 56,
-                    height: 56,
+                    width: 40,
+                    height: 40,
                     borderRadius: "50%",
                     display: "flex",
                     alignItems: "center",
@@ -192,8 +202,8 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
                     backgroundColor: isSelectedDay ? "#1a73e8" : "#f5f5f5",
                     color: isSelectedDay ? "#ffffff" : "#222222",
                     border: "none",
-                    fontSize: 20,
-                    fontWeight: 700,
+                    fontSize: 14, // 最大14px
+                    fontWeight: 600,
                     cursor: "pointer",
                     position: "relative",
                   }}
@@ -203,9 +213,9 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
                     <span
                       style={{
                         position: "absolute",
-                        bottom: -6,
-                        width: 6,
-                        height: 6,
+                        bottom: -5,
+                        width: 5,
+                        height: 5,
                         borderRadius: "50%",
                         backgroundColor: "#f97316",
                       }}
@@ -216,11 +226,11 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
                 {/* 時間ボタン一覧 */}
                 <div
                   style={{
-                    marginTop: 12,
+                    marginTop: 8,
                     width: "100%",
                     display: "flex",
                     flexDirection: "column",
-                    gap: 8,
+                    gap: 6,
                   }}
                 >
                   {TIME_SLOTS.map((slot) => {
@@ -234,16 +244,16 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
                         onClick={() => handleSelectTime(day, slot)}
                         style={{
                           width: "100%",
-                          minWidth: 0, // ここがポイント：列に合わせて縮む
-                          padding: "10px 0",
+                          minWidth: 0,
+                          padding: "6px 0",
                           margin: 0,
-                          borderRadius: 16,
+                          borderRadius: 14,
                           border: "1px solid #e0e0e0",
                           backgroundColor: isSelected
                             ? "#e8f0ff"
                             : "#ffffff",
                           color: isSelected ? "#1a73e8" : "#222222",
-                          fontSize: 16,
+                          fontSize: 13,
                           fontWeight: 500,
                           cursor: "pointer",
                           whiteSpace: "nowrap",
@@ -272,12 +282,13 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
               type="button"
               onClick={() => shiftDays(VISIBLE_DAYS)}
               style={{
-                width: 40,
-                height: 64,
-                borderRadius: 20,
+                width: 32,
+                height: 48,
+                borderRadius: 16,
                 border: "1px solid #e0e0e0",
                 backgroundColor: "#fff",
                 cursor: "pointer",
+                fontSize: 12,
               }}
             >
               {">"}
