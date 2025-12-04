@@ -13,7 +13,13 @@ const VISIBLE_DAYS = 5;
 const TIME_SLOTS = ["09:00", "13:00", "16:00", "18:00", "19:00", "20:00"];
 
 // 日付キー（YYYY-MM-DD）
-const dateKey = (d: Date) => d.toISOString().slice(0, 10);
+// 日付キー（YYYY-MM-DD）※ローカル時間ベースに修正
+const dateKey = (d: Date) => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
 
 export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
   employeeId,
