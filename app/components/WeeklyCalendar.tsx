@@ -9,20 +9,18 @@ type WeeklyCalendarProps = {
   embed?: boolean;
 };
 
-// 忙しい時間帯のリスト（freeBusy のレスポンスをそのまま持つ）
+// 忙しい時間帯のリスト（freeBusy のレスポンスそのまま持つ）
 type BusySlot = { start: string; end: string };
-
-const [busyList, setBusyList] = useState<BusySlot[]>([]);
 
 const VISIBLE_DAYS = 5;
 
-// 09:00〜20:00 を 1時間刻みで生成（9,10,...,20）
+// 09:00〜20:00 を 1時間刻みで生成
 const TIME_SLOTS = Array.from({ length: 12 }, (_, i) => {
   const hour = 9 + i; // 9,10,...,20
   return `${hour.toString().padStart(2, "0")}:00`;
 });
 
-// 指定の日付＋"HH:MM" から Date を作る
+// 指定の日付 + "HH:MM" から Date を作る（ローカル時間）
 const buildDateTime = (day: Date, time: string) => {
   const [h, m] = time.split(":").map(Number);
   const d = new Date(day);
@@ -37,18 +35,15 @@ const isBusySlot = (day: Date, time: string, busy: BusySlot[]) => {
   const slotStart = buildDateTime(day, time);
   const slotEnd = new Date(slotStart.getTime() + 60 * 60 * 1000); // 1時間枠
 
+  // 区間が少しでも重なっていれば busy とみなす
   return busy.some(({ start, end }) => {
     const busyStart = new Date(start);
     const busyEnd = new Date(end);
-
-    // 区間が少しでも重なっていたら busy とみなす
     return slotStart < busyEnd && slotEnd > busyStart;
   });
 };
 
-// 日付キー（YYYY-MM-DD）
-// 日付キー（YYYY-MM-DD）※ローカル時間ベースに修正
-// 日付キー (YYYY-MM-DD) ※ローカルタイム基準で1日ズレを防ぐ
+// 日付キー (YYYY-MM-DD)
 const dateKey = (d: Date) => {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -56,28 +51,40 @@ const dateKey = (d: Date) => {
   return `${y}-${m}-${day}`;
 };
 
-
 export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
   employeeId,
   userId,
   embed,
 }) => {
+  // ←★ ここに busyList の state を置く（コンポーネントの「中」）
+  const [busyList, setBusyList] = useState<BusySlot[]>([]);
+
   const [startDate, setStartDate] = useState<Date>(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
     return d;
   });
 
-  const days = useMemo(() => {
-    return Array.from({ length: VISIBLE_DAYS }, (_, i) => {
-      const d = new Date(startDate);
-      d.setDate(d.getDate() + i);
-      return d;
-    });
-  }, [startDate]);
+  const days = useMemo(
+    () =>
+      Array.from({ length: VISIBLE_DAYS }, (_, i) => {
+        const d = new Date(startDate);
+        d.setDate(d.getDate() + i);
+        return d;
+      }),
+    [startDate]
+  );
 
   const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
+
+  // ここから下は、今まで入っていた useEffect や JSX をそのまま続けてOK
+  // （busyList を使って disabled 判定しているところもこのままで動きます）
+
+  // …既存の useEffect / JSX 以下はそのまま…
+
+  // 例：Bubble へ postMessage している useEffect や、
+  // freebusy を fetch して setBusyList している useEffect など
 
   // 日付＋時間が揃ったら親（Bubble）へ通知
   // 日時 + 情報を親画面（Bubble）へ通知
