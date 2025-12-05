@@ -9,6 +9,11 @@ type WeeklyCalendarProps = {
   embed?: boolean;
 };
 
+// 忙しい時間帯のリスト（freeBusy のレスポンスをそのまま持つ）
+type BusySlot = { start: string; end: string };
+
+const [busyList, setBusyList] = useState<BusySlot[]>([]);
+
 const VISIBLE_DAYS = 5;
 
 // 09:00〜20:00 を 1時間刻みで生成（9,10,...,20）
@@ -17,6 +22,29 @@ const TIME_SLOTS = Array.from({ length: 12 }, (_, i) => {
   return `${hour.toString().padStart(2, "0")}:00`;
 });
 
+// 指定の日付＋"HH:MM" から Date を作る
+const buildDateTime = (day: Date, time: string) => {
+  const [h, m] = time.split(":").map(Number);
+  const d = new Date(day);
+  d.setHours(h, m, 0, 0);
+  return d;
+};
+
+// その枠が busyList と重なっているか？
+const isBusySlot = (day: Date, time: string, busy: BusySlot[]) => {
+  if (!busy.length) return false;
+
+  const slotStart = buildDateTime(day, time);
+  const slotEnd = new Date(slotStart.getTime() + 60 * 60 * 1000); // 1時間枠
+
+  return busy.some(({ start, end }) => {
+    const busyStart = new Date(start);
+    const busyEnd = new Date(end);
+
+    // 区間が少しでも重なっていたら busy とみなす
+    return slotStart < busyEnd && slotEnd > busyStart;
+  });
+};
 
 // 日付キー（YYYY-MM-DD）
 // 日付キー（YYYY-MM-DD）※ローカル時間ベースに修正
@@ -91,6 +119,39 @@ useEffect(() => {
     );
   }
 }, [selectedDayKey, selectedTime, employeeId, userId]);
+
+// 表示している 5 日分の busy を取得
+useEffect(() => {
+  const fetchBusy = async () => {
+    try {
+      const timeMin = new Date(startDate);
+      timeMin.setHours(0, 0, 0, 0);
+
+      const timeMax = new Date(startDate);
+      timeMax.setDate(timeMax.getDate() + VISIBLE_DAYS);
+      timeMax.setHours(23, 59, 59, 999);
+
+      const res = await fetch(
+        `/api/freebusy?timeMin=${encodeURIComponent(
+          timeMin.toISOString()
+        )}&timeMax=${encodeURIComponent(timeMax.toISOString())}`
+      );
+
+      if (!res.ok) {
+        console.error("freebusy fetch error");
+        return;
+      }
+
+      const data = await res.json();
+      setBusyList(data.busy ?? []);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  fetchBusy();
+}, [startDate]);
+
 
 
   const shiftDays = (diff: number) => {
@@ -275,29 +336,46 @@ useEffect(() => {
                 }}
               >
                 {TIME_SLOTS.map((slot) => {
-                  const isSelected =
-                    isSelectedDay && selectedTime === slot;
+  const isSelected = isSelectedDay && selectedTime === slot;
+  const disabled = isBusySlot(day, slot, busyList);
 
-                  return (
-                    <button
-                      key={slot}
-                      type="button"
-                      onClick={() => handleSelectTime(day, slot)}
-                      style={{
-                        width: "100%",
-                        minHeight: 32,
-                        borderRadius: 16,
-                        border: "1px solid #e0e0e0",
-                        backgroundColor: isSelected ? "#e8f0fe" : "#ffffff",
-                        color: "#1a73e8",
-                        fontSize: 12,
-                        cursor: "pointer",
-                      }}
-                    >
-                      {slot}
-                    </button>
-                  );
-                })}
+  const bg = isSelected
+    ? "#1a73e8"
+    : disabled
+    ? "#f5f5f5"
+    : "#ffffff";
+
+  const textColor = isSelected
+    ? "#ffffff"
+    : disabled
+    ? "#cccccc"
+    : "#1a73e8";
+
+  return (
+    <button
+      key={slot}
+      type="button"
+      onClick={() => {
+        if (disabled) return; // 埋まっている枠はクリック無効
+        handleSelectTime(day, slot);
+      }}
+      disabled={disabled}
+      style={{
+        width: "100%",
+        minHeight: 32,
+        borderRadius: 16,
+        border: "1px solid #e0e0e0",
+        backgroundColor: bg,
+        color: textColor,
+        fontSize: 12,
+        cursor: disabled ? "not-allowed" : "pointer",
+      }}
+    >
+      {slot}
+    </button>
+  );
+})}
+
               </div>
             );
           })}
