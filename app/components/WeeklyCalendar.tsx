@@ -218,9 +218,36 @@ useEffect(() => {
   };
 
   const handleSelectTime = (day: Date, slot: string) => {
-    setSelectedDayKey(dateKey(day));
-    setSelectedTime(slot);
-  };
+  const dKey = dateKey(day);
+
+  // すでに選択中の枠をもう一度クリックしたら「クリア」
+  if (selectedDayKey === dKey && selectedTime === slot) {
+    setSelectedDayKey(null);
+    setSelectedTime(null);
+
+    // Bubble 側の hidden input もクリアするために空で postMessage
+    if (typeof window !== "undefined" && window.parent) {
+      window.parent.postMessage(
+        {
+          type: "WORKTALK_SCHEDULE_SELECTED",
+          label: "",
+          startIso: "",
+          endIso: "",
+          employeeId: employeeId ?? null,
+          userId: userId ?? null,
+        },
+        "*"
+      );
+    }
+
+    return;
+  }
+
+  // それ以外（別の時間 or 別の日）は普通に選択
+  setSelectedDayKey(dKey);
+  setSelectedTime(slot);
+};
+
 
   // 表示中のカレンダーの年（左端の日付ベース）
   const currentYear = days.length > 0 ? days[0].getFullYear() : todayBase.getFullYear();
