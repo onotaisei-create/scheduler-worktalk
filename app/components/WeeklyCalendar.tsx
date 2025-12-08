@@ -266,7 +266,7 @@ useEffect(() => {
       <div
         style={{
           textAlign: "center",
-          fontSize: 10,
+          fontSize: 13,
           color: "#666666",
           marginBottom: 4,
         }}
@@ -307,7 +307,7 @@ useEffect(() => {
           >
             ←
           </button>
-          <span style={{ fontSize: 12, color: "#666" }}>日付を選択</span>
+          <span style={{ fontSize: 13, color: "#666" }}>日付を選択</span>
           <button
             type="button"
             onClick={() => shiftDays(VISIBLE_DAYS)}
@@ -365,7 +365,7 @@ useEffect(() => {
       <div
         style={{
           height: 16,
-          fontSize: 10,
+          fontSize: 13,
           fontWeight: 600,
           color: "#666666",
           visibility: showMonthLabel ? "visible" : "hidden",
@@ -377,7 +377,7 @@ useEffect(() => {
       {/* 曜日 */}
       <div
         style={{
-          fontSize: 12,
+          fontSize: 13,
           color: "#666666",
         }}
       >
