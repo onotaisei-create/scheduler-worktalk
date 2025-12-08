@@ -335,73 +335,80 @@ useEffect(() => {
           }}
         >
           {days.map((day) => {
-            const dKey = dateKey(day);
-            const weekday = day.toLocaleDateString("ja-JP", {
-              weekday: "short",
-            });
-            const dayNum = day.getDate();
-            const isSelected = dKey === selectedDayKey;
+  const dKey = dateKey(day);
 
-            const todayLocal = getToday();
-            const isToday = isSameDay(day, todayLocal);
-            const isFirstOfMonth = day.getDate() === 1;
-            const showMonthLabel = isToday || isFirstOfMonth;
+  // ★「その日が選択されていて、かつ時間も選択されているときだけ」青くする
+  const isSelected = dKey === selectedDayKey && selectedTime !== null;
 
-            return (
-              <div
-                key={dKey}
-                style={{
-                  flex: 1,
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: 4,
-                }}
-              >
-                {/* 月ラベル行：全列同じ高さを確保しつつ、必要な列だけ表示 */}
-                <div
-                  style={{
-                    height: 16,
-                    fontSize: 10,
-                    fontWeight: 600,
-                    color: "#666666",
-                    visibility: showMonthLabel ? "visible" : "hidden",
-                  }}
-                >
-                  {showMonthLabel ? `${day.getMonth() + 1}月` : ""}
-                </div>
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: "#666666",
-                  }}
-                >
-                  {weekday}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedDayKey(dKey);
-                    setSelectedTime(null);
-                  }}
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: "20px",
-                    border: "1px solid #e0e0e0",
-                    backgroundColor: isSelected ? "#1a73e8" : "#ffffff",
-                    color: isSelected ? "#ffffff" : "#333333",
-                    fontSize: 14,
-                    fontWeight: 500,
-                    cursor: "pointer",
-                  }}
-                >
-                  {dayNum}
-                </button>
-              </div>
-            );
-          })}
-        </div>
+  const todayLocal = getToday();
+  const isToday = isSameDay(day, todayLocal);
+  const isFirstOfMonth = day.getDate() === 1;
+  const showMonthLabel = isToday || isFirstOfMonth;
+
+  const weekday = day.toLocaleDateString("ja-JP", {
+    weekday: "short",
+  });
+  const dayNum = day.getDate();
+
+  return (
+    <div
+      key={dKey}
+      style={{
+        flex: 1,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 4,
+      }}
+    >
+      {/* 月ラベル行：全列同じ高さを確保しつつ、必要な列だけ表示 */}
+      <div
+        style={{
+          height: 16,
+          fontSize: 10,
+          fontWeight: 600,
+          color: "#666666",
+          visibility: showMonthLabel ? "visible" : "hidden",
+        }}
+      >
+        {showMonthLabel ? `${day.getMonth() + 1}月` : ""}
+      </div>
+
+      {/* 曜日 */}
+      <div
+        style={{
+          fontSize: 12,
+          color: "#666666",
+        }}
+      >
+        {weekday}
+      </div>
+
+      {/* 日付ボタン（クリックしても状態は変えない） */}
+      <button
+        type="button"
+        onClick={(e) => {
+          // 日付クリックでは何もしない
+          e.preventDefault();
+        }}
+        style={{
+          width: 40,
+          height: 40,
+          borderRadius: "20px",
+          border: "1px solid #e0e0e0",
+          backgroundColor: isSelected ? "#1a73e8" : "#ffffff",
+          color: isSelected ? "#ffffff" : "#333333",
+          fontSize: 14,
+          fontWeight: 500,
+          cursor: "default", // 手のカーソルにしない
+        }}
+      >
+        {dayNum}
+      </button>
+    </div>
+  );
+})}
+
 
         {/* 時間ボタン一覧 */}
         <div
