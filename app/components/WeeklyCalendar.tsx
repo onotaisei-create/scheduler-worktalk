@@ -184,29 +184,6 @@ useEffect(() => {
         color: "#333333",
       }}
     >
-      {!embed && (
-        <>
-          <h2
-            style={{
-              fontSize: 14,
-              fontWeight: 600,
-              marginBottom: 8,
-            }}
-          >
-            WeeklyCalendar コンポーネント
-          </h2>
-          <p style={{ fontSize: 12, marginBottom: 4 }}>
-            employeeId: {employeeId ?? "（なし）"} / userId:{" "}
-            {userId ?? "（なし）"}
-          </p>
-          <p style={{ fontSize: 12, marginBottom: 16 }}>
-            選択中:{" "}
-            {selectedDayKey && selectedTime
-              ? "選択済み"
-              : "日付と時間を選択してください"}
-          </p>
-        </>
-      )}
 
       {/* カレンダー全体ラッパー */}
       <div
