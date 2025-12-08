@@ -170,6 +170,33 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
     fetchBusy();
   }, [startDate]);
 
+  // 既存の useEffect（Bubble に選択結果を送るやつ）や
+// busy を fetch する useEffect の「下あたり」に追加してください。
+
+useEffect(() => {
+  if (typeof window === "undefined") return;
+
+  // ページ全体の高さをざっくり取得
+  const doc = document.documentElement;
+  const body = document.body;
+
+  const height = Math.max(
+    doc.scrollHeight,
+    doc.offsetHeight,
+    body.scrollHeight,
+    body.offsetHeight
+  );
+
+  // 親（Bubble 側）へ高さを通知
+  window.parent?.postMessage(
+    {
+      type: "WORKTALK_SCHEDULER_HEIGHT",
+      height,
+    },
+    "*"
+  );
+}, [/* 高さが変わりそうな状態を入れる */ days, busyList, selectedDayKey, selectedTime]);
+
   // 日付をスライド（今日〜1ヶ月以内にクランプ）
   const shiftDays = (diff: number) => {
     setStartDate((prev) => {
