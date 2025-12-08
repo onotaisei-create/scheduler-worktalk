@@ -72,17 +72,18 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
   const [busyList, setBusyList] = useState<BusySlot[]>([]);
 
   // 範囲計算用の「今日」
-  const [todayBase] = useState<Date>(() => getToday());
+const [todayBase] = useState<Date>(() => getToday());
 
-  // 今日から1ヶ月後
-  const oneMonthLater = useMemo(() => {
-    const d = new Date(todayBase);
-    d.setMonth(d.getMonth() + 1);
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }, [todayBase]);
+// 今日から2週間後
+const twoWeeksLater = useMemo(() => {
+  const d = new Date(todayBase);
+  d.setDate(d.getDate() + 14);   // ← ここが「14日後 = 2週間」
+  d.setHours(0, 0, 0, 0);
+  return d;
+}, [todayBase]);
 
-  const [startDate, setStartDate] = useState<Date>(() => getToday());
+// 表示開始日
+const [startDate, setStartDate] = useState<Date>(() => getToday());
 
   const days = useMemo(
     () =>
@@ -205,7 +206,8 @@ useEffect(() => {
       next.setHours(0, 0, 0, 0);
 
       const minStart = new Date(todayBase); // 最小は今日
-      const maxStart = new Date(oneMonthLater); // 最大は「1ヶ月後 - (VISIBLE_DAYS-1)」
+      const maxStart = new Date(twoWeeksLater);
+ // 最大は「1ヶ月後 - (VISIBLE_DAYS-1)」
       maxStart.setDate(maxStart.getDate() - (VISIBLE_DAYS - 1));
       maxStart.setHours(0, 0, 0, 0);
 
