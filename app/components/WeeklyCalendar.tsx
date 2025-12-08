@@ -337,7 +337,7 @@ useEffect(() => {
           {days.map((day) => {
   const dKey = dateKey(day);
 
-  // ★「その日が選択されていて、かつ時間も選択されているときだけ」青くする
+  // 「その日が選択されていて、かつ時間も選択されているときだけ」青くする
   const isSelected = dKey === selectedDayKey && selectedTime !== null;
 
   const todayLocal = getToday();
@@ -361,7 +361,7 @@ useEffect(() => {
         gap: 4,
       }}
     >
-      {/* 月ラベル行：全列同じ高さを確保しつつ、必要な列だけ表示 */}
+      {/* 月ラベル */}
       <div
         style={{
           height: 16,
@@ -408,7 +408,7 @@ useEffect(() => {
     </div>
   );
 })}
-
+</div>
 
         {/* 時間ボタン一覧 */}
         <div
