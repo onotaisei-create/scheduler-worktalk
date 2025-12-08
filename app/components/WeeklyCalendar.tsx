@@ -71,18 +71,16 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
 }) => {
   const [busyList, setBusyList] = useState<BusySlot[]>([]);
 
-  // 今日（基準日）
-  const today = useMemo(() => getToday(), []);
+  // 範囲計算用の「今日」
+  const [todayBase] = useState<Date>(() => getToday());
+
   // 今日から1ヶ月後
   const oneMonthLater = useMemo(() => {
-    const d = new Date(today);
+    const d = new Date(todayBase);
     d.setMonth(d.getMonth() + 1);
     d.setHours(0, 0, 0, 0);
     return d;
-  }, [today]);
-
-  // 現在時刻（「今日の過去分」を無効にする判定用）
-  const now = new Date();
+  }, [todayBase]);
 
   const [startDate, setStartDate] = useState<Date>(() => getToday());
 
@@ -109,9 +107,9 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
 
     // YYYY-MM-DD を分解して「ローカル日時」を作る
     const [y, m, d] = selectedDayKey.split("-").map((v) => Number(v));
-    const start = new Date(y, m - 1, d, hour, minute, 0, 0); // ← ローカル基準
+    const start = new Date(y, m - 1, d, hour, minute, 0, 0); // ローカル基準
 
-    // ★ ここで必ず 1 時間固定イベントにする
+    // 1時間固定イベント
     const end = new Date(start.getTime() + 60 * 60 * 1000);
 
     // ラベル（Bubble に表示する "12/7(日) 18:00" みたいな文字）
@@ -130,8 +128,8 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
         {
           type: "WORKTALK_SCHEDULE_SELECTED",
           label,
-          startIso: start.toISOString(), // 例: 2025-12-07T09:00:00.000Z (JST 18:00)
-          endIso: end.toISOString(), // 例: 2025-12-07T10:00:00.000Z (JST 19:00)
+          startIso: start.toISOString(),
+          endIso: end.toISOString(),
           employeeId: employeeId ?? null,
           userId: userId ?? null,
         },
@@ -179,7 +177,7 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
       next.setDate(next.getDate() + diff);
       next.setHours(0, 0, 0, 0);
 
-      const minStart = new Date(today); // 最小は今日
+      const minStart = new Date(todayBase); // 最小は今日
       const maxStart = new Date(oneMonthLater); // 最大は「1ヶ月後 - (VISIBLE_DAYS-1)」
       maxStart.setDate(maxStart.getDate() - (VISIBLE_DAYS - 1));
       maxStart.setHours(0, 0, 0, 0);
@@ -197,6 +195,9 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
     setSelectedTime(slot);
   };
 
+  // 表示中のカレンダーの年（左端の日付ベース）
+  const currentYear = days.length > 0 ? days[0].getFullYear() : todayBase.getFullYear();
+
   return (
     <section
       style={{
@@ -207,7 +208,7 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
         backgroundColor: "#ffffff", // 常に白
       }}
     >
-      {/* 年表示 */}
+      {/* 年表示（表示中の範囲に合わせる） */}
       <div
         style={{
           textAlign: "center",
@@ -216,7 +217,7 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
           marginBottom: 4,
         }}
       >
-        {today.getFullYear()}年
+        {currentYear}年
       </div>
 
       {/* カレンダー全体ラッパー */}
@@ -287,7 +288,8 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
             const dayNum = day.getDate();
             const isSelected = dKey === selectedDayKey;
 
-            const isToday = isSameDay(day, today);
+            const todayLocal = getToday();
+            const isToday = isSameDay(day, todayLocal);
             const isFirstOfMonth = day.getDate() === 1;
             const showMonthLabel = isToday || isFirstOfMonth;
 
@@ -302,17 +304,18 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
                   gap: 4,
                 }}
               >
-                {showMonthLabel && (
-                  <div
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 600,
-                      color: "#666666",
-                    }}
-                  >
-                    {day.getMonth() + 1}月
-                  </div>
-                )}
+                {/* 月ラベル行：全列同じ高さを確保しつつ、必要な列だけ表示 */}
+                <div
+                  style={{
+                    height: 16,
+                    fontSize: 10,
+                    fontWeight: 600,
+                    color: "#666666",
+                    visibility: showMonthLabel ? "visible" : "hidden",
+                  }}
+                >
+                  {showMonthLabel ? `${day.getMonth() + 1}月` : ""}
+                </div>
                 <div
                   style={{
                     fontSize: 12,
@@ -371,10 +374,11 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
                 {TIME_SLOTS.map((slot) => {
                   const isSelected = isSelectedDay && selectedTime === slot;
 
-                  // 今日の過去時間はグレーアウト＋クリック不可
+                  // 「今日の過去時間」をグレーアウト＋クリック不可
+                  const nowLocal = new Date();
+                  const isToday = isSameDay(day, nowLocal);
                   const slotDate = buildDateTime(day, slot);
-                  const isToday = isSameDay(day, today);
-                  const isPastTime = isToday && slotDate <= now;
+                  const isPastTime = isToday && slotDate <= nowLocal;
 
                   const disabled =
                     isBusySlot(day, slot, busyList) || isPastTime;
