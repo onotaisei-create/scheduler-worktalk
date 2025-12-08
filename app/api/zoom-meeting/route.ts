@@ -4,29 +4,67 @@ import { NextRequest, NextResponse } from "next/server";
 
 type RequestBody = {
   topic?: string;
-  start_time: string; // 例: "2025-12-10T19:00:00"
+  start_time?: string; // Bubble から来る UTC の ISO 文字列（例: 2025-12-14T11:00:00.000Z）
   duration?: number;
   timezone?: string;
 };
 
+/**
+ * UTC の ISO 文字列（"2025-12-14T11:00:00.000Z" など）を
+ * Asia/Tokyo の「yyyy-MM-ddTHH:mm:ss」文字列に変換する
+ */
+function convertUtcToTokyoLocal(isoString: string): string {
+  const date = new Date(isoString);
+  if (isNaN(date.getTime())) {
+    throw new Error(`Invalid start_time: ${isoString}`);
+  }
+
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+
+  const parts = formatter.formatToParts(date);
+  const get = (type: string) =>
+    parts.find((p) => p.type === type)?.value ?? "00";
+
+  const y = get("year");
+  const m = get("month");
+  const d = get("day");
+  const h = get("hour");
+  const mi = get("minute");
+  const s = get("second");
+
+  // Zoom に渡すローカル時間フォーマット: yyyy-MM-ddTHH:mm:ss
+  return `${y}-${m}-${d}T${h}:${mi}:${s}`;
+}
+
 export async function POST(req: NextRequest) {
   try {
-    // リクエストボディを取得
     const body = (await req.json()) as RequestBody;
 
     const topic = body.topic || "WorkTalk カジュアル面談";
-    const start_time = body.start_time;
+    const rawStartTime = body.start_time; // Bubble から来る UTC の ISO 文字列
     const duration = body.duration ?? 30; // 分
     const timezone = body.timezone || "Asia/Tokyo";
 
-    if (!start_time) {
+    if (!rawStartTime) {
       return NextResponse.json(
         { error: "start_time is required" },
         { status: 400 }
       );
     }
 
-    // ===== 1. Zoom アクセストークン取得 =====
+    // UTC → Tokyo のローカル時間文字列に変換
+    const start_time_tokyo = convertUtcToTokyoLocal(rawStartTime);
+
+    // ===== Zoom アクセストークン取得 =====
     const accountId = process.env.ZOOM_ACCOUNT_ID;
     const clientId = process.env.ZOOM_CLIENT_ID;
     const clientSecret = process.env.ZOOM_CLIENT_SECRET;
@@ -69,7 +107,7 @@ export async function POST(req: NextRequest) {
     const tokenJson = await tokenRes.json();
     const accessToken = tokenJson.access_token as string;
 
-    // ===== 2. Zoom ミーティング作成 =====
+    // ===== Zoom ミーティング作成 =====
     const createMeetingRes = await fetch(
       "https://api.zoom.us/v2/users/me/meetings",
       {
@@ -80,10 +118,10 @@ export async function POST(req: NextRequest) {
         },
         body: JSON.stringify({
           topic,
-          type: 2, // schedule
-          start_time, // "YYYY-MM-DDTHH:mm:ss" 形式
+          type: 2, // scheduled
+          start_time: start_time_tokyo, // 東京時間に変換済み
           duration,
-          timezone,
+          timezone, // "Asia/Tokyo"
           settings: {
             join_before_host: true,
             waiting_room: false,
@@ -103,7 +141,7 @@ export async function POST(req: NextRequest) {
 
     const meetingJson = await createMeetingRes.json();
 
-    // Bubble で使いやすい情報だけ返す
+    // Bubble で使う値だけ返す
     return NextResponse.json(
       {
         id: meetingJson.id,
