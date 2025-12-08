@@ -51,25 +51,47 @@ const dateKey = (d: Date) => {
   return `${y}-${m}-${day}`;
 };
 
+// 今日（00:00に丸めた値）を取得
+const getToday = () => {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
+// 同じ日かどうか
+const isSameDay = (a: Date, b: Date) =>
+  a.getFullYear() === b.getFullYear() &&
+  a.getMonth() === b.getMonth() &&
+  a.getDate() === b.getDate();
+
 export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
   employeeId,
   userId,
   embed,
 }) => {
-  // ←★ ここに busyList の state を置く（コンポーネントの「中」）
   const [busyList, setBusyList] = useState<BusySlot[]>([]);
 
-  const [startDate, setStartDate] = useState<Date>(() => {
-    const d = new Date();
+  // 今日（基準日）
+  const today = useMemo(() => getToday(), []);
+  // 今日から1ヶ月後
+  const oneMonthLater = useMemo(() => {
+    const d = new Date(today);
+    d.setMonth(d.getMonth() + 1);
     d.setHours(0, 0, 0, 0);
     return d;
-  });
+  }, [today]);
+
+  // 現在時刻（「今日の過去分」を無効にする判定用）
+  const now = new Date();
+
+  const [startDate, setStartDate] = useState<Date>(() => getToday());
 
   const days = useMemo(
     () =>
       Array.from({ length: VISIBLE_DAYS }, (_, i) => {
         const d = new Date(startDate);
         d.setDate(d.getDate() + i);
+        d.setHours(0, 0, 0, 0);
         return d;
       }),
     [startDate]
@@ -78,94 +100,93 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
   const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
 
-  // ここから下は、今まで入っていた useEffect や JSX をそのまま続けてOK
-  // （busyList を使って disabled 判定しているところもこのままで動きます）
-
-  // …既存の useEffect / JSX 以下はそのまま…
-
-  // 例：Bubble へ postMessage している useEffect や、
-  // freebusy を fetch して setBusyList している useEffect など
-
   // 日付＋時間が揃ったら親（Bubble）へ通知
-  // 日時 + 情報を親画面（Bubble）へ通知
-useEffect(() => {
-  if (!selectedDayKey || !selectedTime) return;
+  useEffect(() => {
+    if (!selectedDayKey || !selectedTime) return;
 
-  // 時刻（"09:00" みたいな文字列）を数値に
-  const [hour, minute] = selectedTime.split(":").map((v) => Number(v));
+    // 時刻（"09:00" みたいな文字列）を数値に
+    const [hour, minute] = selectedTime.split(":").map((v) => Number(v));
 
-  // YYYY-MM-DD を分解して「ローカル日時」を作る
-  const [y, m, d] = selectedDayKey.split("-").map((v) => Number(v));
-  const start = new Date(y, m - 1, d, hour, minute, 0, 0); // ← ローカル基準
+    // YYYY-MM-DD を分解して「ローカル日時」を作る
+    const [y, m, d] = selectedDayKey.split("-").map((v) => Number(v));
+    const start = new Date(y, m - 1, d, hour, minute, 0, 0); // ← ローカル基準
 
-  // ★ ここで必ず 1 時間固定イベントにする
-  const end = new Date(start.getTime() + 60 * 60 * 1000);
+    // ★ ここで必ず 1 時間固定イベントにする
+    const end = new Date(start.getTime() + 60 * 60 * 1000);
 
-  // ラベル（Bubble に表示する "12/7(日) 18:00" みたいな文字）
-  const label = start.toLocaleString("ja-JP", {
-    month: "numeric",
-    weekday: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
+    // ラベル（Bubble に表示する "12/7(日) 18:00" みたいな文字）
+    const label = start.toLocaleString("ja-JP", {
+      month: "numeric",
+      weekday: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
 
-  // Bubble 側へ postMessage
-  if (typeof window !== "undefined" && window.parent) {
-    window.parent.postMessage(
-      {
-        type: "WORKTALK_SCHEDULE_SELECTED",
-        label,
-        startIso: start.toISOString(), // 例: 2025-12-07T09:00:00.000Z (JST 18:00)
-        endIso: end.toISOString(),     // 例: 2025-12-07T10:00:00.000Z (JST 19:00)
-        employeeId: employeeId ?? null,
-        userId: userId ?? null,
-      },
-      "*"
-    );
-  }
-}, [selectedDayKey, selectedTime, employeeId, userId]);
-
-// 表示している 5 日分の busy を取得
-useEffect(() => {
-  const fetchBusy = async () => {
-    try {
-      const timeMin = new Date(startDate);
-      timeMin.setHours(0, 0, 0, 0);
-
-      const timeMax = new Date(startDate);
-      timeMax.setDate(timeMax.getDate() + VISIBLE_DAYS);
-      timeMax.setHours(23, 59, 59, 999);
-
-      const res = await fetch(
-        `/api/freebusy?timeMin=${encodeURIComponent(
-          timeMin.toISOString()
-        )}&timeMax=${encodeURIComponent(timeMax.toISOString())}`
+    // Bubble 側へ postMessage
+    if (typeof window !== "undefined" && window.parent) {
+      window.parent.postMessage(
+        {
+          type: "WORKTALK_SCHEDULE_SELECTED",
+          label,
+          startIso: start.toISOString(), // 例: 2025-12-07T09:00:00.000Z (JST 18:00)
+          endIso: end.toISOString(), // 例: 2025-12-07T10:00:00.000Z (JST 19:00)
+          employeeId: employeeId ?? null,
+          userId: userId ?? null,
+        },
+        "*"
       );
-
-      if (!res.ok) {
-        console.error("freebusy fetch error");
-        return;
-      }
-
-      const data = await res.json();
-      setBusyList(data.busy ?? []);
-    } catch (e) {
-      console.error(e);
     }
-  };
+  }, [selectedDayKey, selectedTime, employeeId, userId]);
 
-  fetchBusy();
-}, [startDate]);
+  // 表示している 5 日分の busy を取得
+  useEffect(() => {
+    const fetchBusy = async () => {
+      try {
+        const timeMin = new Date(startDate);
+        timeMin.setHours(0, 0, 0, 0);
 
+        const timeMax = new Date(startDate);
+        timeMax.setDate(timeMax.getDate() + VISIBLE_DAYS);
+        timeMax.setHours(23, 59, 59, 999);
 
+        const res = await fetch(
+          `/api/freebusy?timeMin=${encodeURIComponent(
+            timeMin.toISOString()
+          )}&timeMax=${encodeURIComponent(timeMax.toISOString())}`
+        );
 
+        if (!res.ok) {
+          console.error("freebusy fetch error");
+          return;
+        }
+
+        const data = await res.json();
+        setBusyList(data.busy ?? []);
+      } catch (e) {
+        console.error(e);
+      }
+    };
+
+    fetchBusy();
+  }, [startDate]);
+
+  // 日付をスライド（今日〜1ヶ月以内にクランプ）
   const shiftDays = (diff: number) => {
     setStartDate((prev) => {
-      const d = new Date(prev);
-      d.setDate(d.getDate() + diff);
-      return d;
+      const next = new Date(prev);
+      next.setDate(next.getDate() + diff);
+      next.setHours(0, 0, 0, 0);
+
+      const minStart = new Date(today); // 最小は今日
+      const maxStart = new Date(oneMonthLater); // 最大は「1ヶ月後 - (VISIBLE_DAYS-1)」
+      maxStart.setDate(maxStart.getDate() - (VISIBLE_DAYS - 1));
+      maxStart.setHours(0, 0, 0, 0);
+
+      if (next < minStart) return minStart;
+      if (next > maxStart) return maxStart;
+      return next;
     });
     setSelectedDayKey(null);
     setSelectedTime(null);
@@ -179,11 +200,24 @@ useEffect(() => {
   return (
     <section
       style={{
-        fontFamily: '"Noto Sans JP", system-ui, -apple-system, BlinkMacSystemFont',
+        fontFamily:
+          '"Noto Sans JP", system-ui, -apple-system, BlinkMacSystemFont',
         fontSize: 12,
         color: "#333333",
+        backgroundColor: "#ffffff", // 常に白
       }}
     >
+      {/* 年表示 */}
+      <div
+        style={{
+          textAlign: "center",
+          fontSize: 10,
+          color: "#666666",
+          marginBottom: 4,
+        }}
+      >
+        {today.getFullYear()}年
+      </div>
 
       {/* カレンダー全体ラッパー */}
       <div
@@ -193,7 +227,7 @@ useEffect(() => {
           margin: "0 auto",
         }}
       >
-        {/* 上のナビゲーション */}
+        {/* 上のナビゲーション（UIそのまま） */}
         <div
           style={{
             display: "flex",
@@ -253,6 +287,10 @@ useEffect(() => {
             const dayNum = day.getDate();
             const isSelected = dKey === selectedDayKey;
 
+            const isToday = isSameDay(day, today);
+            const isFirstOfMonth = day.getDate() === 1;
+            const showMonthLabel = isToday || isFirstOfMonth;
+
             return (
               <div
                 key={dKey}
@@ -264,6 +302,17 @@ useEffect(() => {
                   gap: 4,
                 }}
               >
+                {showMonthLabel && (
+                  <div
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 600,
+                      color: "#666666",
+                    }}
+                  >
+                    {day.getMonth() + 1}月
+                  </div>
+                )}
                 <div
                   style={{
                     fontSize: 12,
@@ -320,46 +369,52 @@ useEffect(() => {
                 }}
               >
                 {TIME_SLOTS.map((slot) => {
-  const isSelected = isSelectedDay && selectedTime === slot;
-  const disabled = isBusySlot(day, slot, busyList);
+                  const isSelected = isSelectedDay && selectedTime === slot;
 
-  const bg = isSelected
-    ? "#1a73e8"
-    : disabled
-    ? "#f5f5f5"
-    : "#ffffff";
+                  // 今日の過去時間はグレーアウト＋クリック不可
+                  const slotDate = buildDateTime(day, slot);
+                  const isToday = isSameDay(day, today);
+                  const isPastTime = isToday && slotDate <= now;
 
-  const textColor = isSelected
-    ? "#ffffff"
-    : disabled
-    ? "#cccccc"
-    : "#1a73e8";
+                  const disabled =
+                    isBusySlot(day, slot, busyList) || isPastTime;
 
-  return (
-    <button
-      key={slot}
-      type="button"
-      onClick={() => {
-        if (disabled) return; // 埋まっている枠はクリック無効
-        handleSelectTime(day, slot);
-      }}
-      disabled={disabled}
-      style={{
-        width: "100%",
-        minHeight: 32,
-        borderRadius: 16,
-        border: "1px solid #e0e0e0",
-        backgroundColor: bg,
-        color: textColor,
-        fontSize: 12,
-        cursor: disabled ? "not-allowed" : "pointer",
-      }}
-    >
-      {slot}
-    </button>
-  );
-})}
+                  const bg = isSelected
+                    ? "#1a73e8"
+                    : disabled
+                    ? "#f5f5f5"
+                    : "#ffffff";
 
+                  const textColor = isSelected
+                    ? "#ffffff"
+                    : disabled
+                    ? "#cccccc"
+                    : "#1a73e8";
+
+                  return (
+                    <button
+                      key={slot}
+                      type="button"
+                      onClick={() => {
+                        if (disabled) return; // 埋まっている枠・過去枠はクリック無効
+                        handleSelectTime(day, slot);
+                      }}
+                      disabled={disabled}
+                      style={{
+                        width: "100%",
+                        minHeight: 32,
+                        borderRadius: 16,
+                        border: "1px solid #e0e0e0",
+                        backgroundColor: bg,
+                        color: textColor,
+                        fontSize: 12,
+                        cursor: disabled ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      {slot}
+                    </button>
+                  );
+                })}
               </div>
             );
           })}
