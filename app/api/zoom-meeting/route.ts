@@ -123,8 +123,8 @@ export async function POST(req: NextRequest) {
           duration,
           timezone, // "Asia/Tokyo"
           settings: {
-            join_before_host: true,
-            waiting_room: false,
+            join_before_host: false,
+            waiting_room: true,
           },
         }),
       }
