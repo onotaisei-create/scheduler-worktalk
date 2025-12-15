@@ -7,7 +7,7 @@ type WeeklyCalendarProps = {
   employeeId?: string;
   userId?: string;
   embed?: boolean;
-  bgColor?: string; // 初期値として受け取る（なくてもよい）
+  bgColor?: string;
 };
 
 // 忙しい時間帯のリスト（freeBusy のレスポンスそのまま持つ）
@@ -69,55 +69,8 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
   employeeId,
   userId,
   embed,
-  bgColor: bgColorProp = "#ffffff",
+  bgColor = "#ffffff",
 }) => {
-  // ▼ 背景色（初期値は props／URL から上書きする）
-  const [bgColor, setBgColor] = useState<string>(bgColorProp);
-
-  // ▼ URL の ?bg=xxxxxx から背景色を決定（クライアント側で確実に動かす）
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    let color = bgColorProp;
-
-    try {
-      const sp = new URLSearchParams(window.location.search);
-      const rawBg = sp.get("bg");
-
-      if (rawBg) {
-        let hex = rawBg.trim();
-
-        // 先頭に # がなければ付ける
-        if (!hex.startsWith("#")) {
-          hex = `#${hex}`;
-        }
-
-        // 3桁 (#abc) を 6桁 (#aabbcc) に展開
-        if (/^#[0-9a-fA-F]{3}$/.test(hex)) {
-          const r = hex[1];
-          const g = hex[2];
-          const b = hex[3];
-          hex = `#${r}${r}${g}${g}${b}${b}`;
-        }
-
-        // 最終的に 6桁なら採用
-        if (/^#[0-9a-fA-F]{6}$/.test(hex)) {
-          color = hex;
-        }
-      }
-    } catch (e) {
-      console.error(e);
-    }
-
-    setBgColor(color);
-
-    // ページ全体の背景も揃える
-    if (typeof document !== "undefined") {
-      document.body.style.backgroundColor = color;
-      document.documentElement.style.backgroundColor = color;
-    }
-  }, [bgColorProp]);
-
   const [busyList, setBusyList] = useState<BusySlot[]>([]);
 
   // 範囲計算用の「今日」
@@ -294,7 +247,7 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
           '"Noto Sans JP", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
         fontSize: 12,
         color: "#333333",
-        backgroundColor: bgColor, // ← ここに最終決定された背景色が入る
+        backgroundColor: bgColor,
         minHeight: "100vh",
       }}
     >
@@ -418,7 +371,7 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
                   {weekday}
                 </div>
 
-                {/* 日付ボタン（クリックしても状態は変えない） */}
+                {/* 日付ボタン */}
                 <button
                   type="button"
                   onClick={(e) => e.preventDefault()}
@@ -468,13 +421,13 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
                   const isToday = isSameDay(day, nowLocal);
                   const slotDate = buildDateTime(day, slot);
 
-                  // ★ 今日の「現在時刻より前」は必ず過去扱い
+                  // 現在時刻より過去か？
                   const isPastTime = isToday && slotDate <= nowLocal;
 
-                  // ★ free/busy API で埋まっているかどうか
+                  // その枠が busy に含まれているか？
                   const busy = isBusySlot(day, slot, busyList);
 
-                  // ★ 「過去時間 or busy」のどちらかなら必ず disabled
+                  // 「過去時間 or busy」のどちらかなら必ず disabled
                   const disabled = isPastTime || busy;
 
                   const isSelected =
@@ -482,14 +435,19 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
 
                   let bg = "#ffffff";
                   let textColor = "#1a73e8";
+                  let borderColor = "#e0e0e0";
+                  let opacity = 1;
 
                   if (disabled) {
-                    // ★ 過去時間も busy も「同じグレー」で表示
-                    bg = "#f5f5f5";
-                    textColor = "#cccccc";
+                    // ★ 過去 or 埋まり枠：しっかりグレーアウト
+                    bg = "#f0f0f0";
+                    textColor = "#b3b3b3";
+                    borderColor = "#e0e0e0";
+                    opacity = 1; // ここを 0.7 などにしてもさらに薄くできます
                   } else if (isSelected) {
                     bg = "#1a73e8";
                     textColor = "#ffffff";
+                    borderColor = "#1a73e8";
                   }
 
                   return (
@@ -505,11 +463,12 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
                         width: "100%",
                         minHeight: 32,
                         borderRadius: 16,
-                        border: "1px solid #e0e0e0",
+                        border: `1px solid ${borderColor}`,
                         backgroundColor: bg,
                         color: textColor,
                         fontSize: 12,
                         cursor: disabled ? "not-allowed" : "pointer",
+                        opacity,
                       }}
                     >
                       {slot}
