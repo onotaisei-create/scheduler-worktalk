@@ -29,8 +29,10 @@ body {
   color-scheme: light;
 }
 
+/* ★ このブロックは削除するか、少なくとも !important をやめる */
 html,
 body {
-  background-color: #ffffff !important;
+  /* background-color: #ffffff !important;  ← 消す */
   color: #333333;
 }
+
