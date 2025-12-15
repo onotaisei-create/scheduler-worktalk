@@ -43,6 +43,7 @@ export default function Page({ searchParams }: PageProps) {
         employeeId={employeeId}
         userId={userId}
         embed={isEmbed}
+        bgColor={bgColor}
       />
     </main>
   );
