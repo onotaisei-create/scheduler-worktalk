@@ -418,54 +418,58 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
                 }}
               >
                 {TIME_SLOTS.map((slot) => {
-                  const nowLocal = new Date();
-                  const isToday = isSameDay(day, nowLocal);
-                  const slotDate = buildDateTime(day, slot);
-                  const isPastTime = isToday && slotDate <= nowLocal;
+  const nowLocal = new Date();
+  const isToday = isSameDay(day, nowLocal);
+  const slotDate = buildDateTime(day, slot);
 
-                  const busy = isBusySlot(day, slot, busyList);
+  // 過去の時間か？
+  const isPastTime = isToday && slotDate <= nowLocal;
 
-                  // ★ 過去時間 or busy のどちらかなら必ず disabled
-                  const disabled = isPastTime || busy;
+  // その枠が busy に含まれているか？
+  const busy = isBusySlot(day, slot, busyList);
 
-                  const isSelected = isSelectedDay && selectedTime === slot;
+  // 「過去時間 or busy」のどちらかなら必ず disabled
+  const disabled = isPastTime || busy;
 
-                  let bg = "#ffffff";
-                  let textColor = "#1a73e8";
+  const isSelected = isSelectedDay && selectedTime === slot;
 
-                  if (disabled) {
-                    // ★ 過去＆埋まりは同じグレー
-                    bg = "#f5f5f5";
-                    textColor = "#cccccc";
-                  } else if (isSelected) {
-                    bg = "#1a73e8";
-                    textColor = "#ffffff";
-                  }
+  let bg = "#ffffff";
+  let textColor = "#1a73e8";
 
-                  return (
-                    <button
-                      key={slot}
-                      type="button"
-                      disabled={disabled}
-                      onClick={() => {
-                        if (disabled) return;
-                        handleSelectTime(day, slot);
-                      }}
-                      style={{
-                        width: "100%",
-                        minHeight: 32,
-                        borderRadius: 16,
-                        border: "1px solid #e0e0e0",
-                        backgroundColor: bg,
-                        color: textColor,
-                        fontSize: 12,
-                        cursor: disabled ? "not-allowed" : "pointer",
-                      }}
-                    >
-                      {slot}
-                    </button>
-                  );
-                })}
+  if (disabled) {
+    // 過去 or 埋まり枠は同じグレー
+    bg = "#f5f5f5";
+    textColor = "#cccccc";
+  } else if (isSelected) {
+    bg = "#1a73e8";
+    textColor = "#ffffff";
+  }
+
+  return (
+    <button
+      key={slot}
+      type="button"
+      disabled={disabled}
+      onClick={() => {
+        if (disabled) return; // 念のためガード
+        handleSelectTime(day, slot);
+      }}
+      style={{
+        width: "100%",
+        minHeight: 32,
+        borderRadius: 16,
+        border: "1px solid #e0e0e0",
+        backgroundColor: bg,
+        color: textColor,
+        fontSize: 12,
+        cursor: disabled ? "not-allowed" : "pointer",
+      }}
+    >
+      {slot}
+    </button>
+  );
+})}
+
               </div>
             );
           })}

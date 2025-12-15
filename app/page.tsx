@@ -19,13 +19,18 @@ export default function Page({ searchParams }: PageProps) {
     typeof rawEmbed === "string" &&
     (rawEmbed === "1" || rawEmbed.toLowerCase() === "true");
 
-  const rawBg =
-    typeof rawBgParam === "string" ? rawBgParam.replace(/^#/, "") : undefined;
+  // app/page.tsx の中（searchParams から値を取っているあたり）
+const rawBg = searchParams?.bg;
 
-  const bgColor =
-    typeof rawBg === "string" && /^[0-9a-fA-F]{6}$/.test(rawBg)
-      ? `#${rawBg}`
-      : "#ffffff";
+// 「# が付いていても、付いていなくても OK」にする
+let bgColor = "#ffffff";
+
+if (typeof rawBg === "string") {
+  const hex = rawBg.startsWith("#") ? rawBg : `#${rawBg}`;
+  if (/^#[0-9a-fA-F]{6}$/.test(hex)) {
+    bgColor = hex;
+  }
+}
 
   return (
     <main
