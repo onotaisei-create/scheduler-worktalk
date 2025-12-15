@@ -120,6 +120,9 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
 
   const [busyList, setBusyList] = useState<BusySlot[]>([]);
 
+  // 現在時刻（クライアント側でだけセットする）
+  const [nowMs, setNowMs] = useState<number | null>(null);
+
   // 範囲計算用の「今日」
   const [todayBase] = useState<Date>(() => getToday());
 
@@ -212,6 +215,20 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
 
     fetchBusy();
   }, [startDate]);
+
+    // マウント後に現在時刻をセット（SSR とのズレをなくす）
+  useEffect(() => {
+    // 初回
+    setNowMs(Date.now());
+
+    // 1分ごとに更新（ページを開いたままでも自動で過去枠になる）
+    const timer = setInterval(() => {
+      setNowMs(Date.now());
+    }, 60 * 1000);
+
+    return () => clearInterval(timer);
+  }, []);
+
 
   // 高さを親(Bubble)に伝える
   useEffect(() => {
@@ -441,7 +458,7 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
           })}
         </div>
 
-        {/* 時間ボタン一覧 */}
+               {/* 時間ボタン一覧 */}
         <div
           style={{
             display: "flex",
@@ -464,27 +481,26 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
                 }}
               >
                 {TIME_SLOTS.map((slot) => {
-                  const nowLocal = new Date();
-                  const isToday = isSameDay(day, nowLocal);
+                  // この枠の日時
                   const slotDate = buildDateTime(day, slot);
 
-                  // ★ 今日の「現在時刻より前」は必ず過去扱い
-                  const isPastTime = isToday && slotDate <= nowLocal;
+                  // ★ nowMs が null の間は「過去扱いしない」＝ false
+                  const isPastTime =
+                    nowMs !== null && slotDate.getTime() <= nowMs;
 
-                  // ★ free/busy API で埋まっているかどうか
+                  // freebusy で埋まっているか
                   const busy = isBusySlot(day, slot, busyList);
 
-                  // ★ 「過去時間 or busy」のどちらかなら必ず disabled
+                  // ★「過去」または「busy」なら必ず disabled
                   const disabled = isPastTime || busy;
 
-                  const isSelected =
-                    isSelectedDay && selectedTime === slot;
+                  const isSelected = isSelectedDay && selectedTime === slot;
 
                   let bg = "#ffffff";
                   let textColor = "#1a73e8";
 
                   if (disabled) {
-                    // ★ 過去時間も busy も「同じグレー」で表示
+                    // 過去枠も busy も同じグレー
                     bg = "#f5f5f5";
                     textColor = "#cccccc";
                   } else if (isSelected) {
@@ -498,7 +514,7 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
                       type="button"
                       disabled={disabled}
                       onClick={() => {
-                        if (disabled) return;
+                        if (disabled) return; // 念のためガード
                         handleSelectTime(day, slot);
                       }}
                       style={{
@@ -520,6 +536,7 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
             );
           })}
         </div>
+
       </div>
     </section>
   );
