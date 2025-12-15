@@ -7,7 +7,9 @@ type WeeklyCalendarProps = {
   employeeId?: string;
   userId?: string;
   embed?: boolean;
+  bgColor?: string;    // ★ 追加
 };
+
 
 // 忙しい時間帯のリスト（freeBusy のレスポンスそのまま持つ）
 type BusySlot = { start: string; end: string };
@@ -68,6 +70,7 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
   employeeId,
   userId,
   embed,
+  bgColor = "#ffffff",   // ★ デフォルト白
 }) => {
   const [busyList, setBusyList] = useState<BusySlot[]>([]);
 
@@ -261,7 +264,7 @@ useEffect(() => {
           '"Noto Sans JP", system-ui, -apple-system, BlinkMacSystemFont',
         fontSize: 12,
         color: "#333333",
-        backgroundColor: "#ffffff", // 常に白
+        backgroundColor: bgColor,   // 常に白
       }}
     >
       {/* 年表示（表示中の範囲に合わせる） */}
