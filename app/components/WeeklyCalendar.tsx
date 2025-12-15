@@ -7,7 +7,7 @@ type WeeklyCalendarProps = {
   employeeId?: string;
   userId?: string;
   embed?: boolean;
-  bgColor?: string; // ★ 追加
+  bgColor?: string;
 };
 
 // 忙しい時間帯のリスト（freeBusy のレスポンスそのまま持つ）
@@ -36,6 +36,7 @@ const isBusySlot = (day: Date, time: string, busy: BusySlot[]) => {
   const slotStart = buildDateTime(day, time);
   const slotEnd = new Date(slotStart.getTime() + 60 * 60 * 1000); // 1時間枠
 
+  // 区間が少しでも重なっていれば busy とみなす
   return busy.some(({ start, end }) => {
     const busyStart = new Date(start);
     const busyEnd = new Date(end);
@@ -51,7 +52,7 @@ const dateKey = (d: Date) => {
   return `${y}-${m}-${day}`;
 };
 
-// 今日（00:00に丸めた値）
+// 今日（00:00に丸めた値）を取得
 const getToday = () => {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
@@ -68,14 +69,14 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
   employeeId,
   userId,
   embed,
-  bgColor = "#ffffff", // デフォルト白
+  bgColor = "#ffffff",
 }) => {
   const [busyList, setBusyList] = useState<BusySlot[]>([]);
 
   // 範囲計算用の「今日」
   const [todayBase] = useState<Date>(() => getToday());
 
-  // 今日から 2 週間後
+  // 今日から2週間後
   const twoWeeksLater = useMemo(() => {
     const d = new Date(todayBase);
     d.setDate(d.getDate() + 14);
@@ -104,8 +105,8 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
   useEffect(() => {
     if (!selectedDayKey || !selectedTime) return;
 
-    const [hour, minute] = selectedTime.split(":").map(Number);
-    const [y, m, d] = selectedDayKey.split("-").map(Number);
+    const [hour, minute] = selectedTime.split(":").map((v) => Number(v));
+    const [y, m, d] = selectedDayKey.split("-").map((v) => Number(v));
     const start = new Date(y, m - 1, d, hour, minute, 0, 0);
     const end = new Date(start.getTime() + 60 * 60 * 1000);
 
@@ -133,7 +134,7 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
     }
   }, [selectedDayKey, selectedTime, employeeId, userId]);
 
-  // 表示中 5 日分の busy を取得
+  // 表示している 5 日分の busy を取得
   useEffect(() => {
     const fetchBusy = async () => {
       try {
@@ -165,7 +166,7 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
     fetchBusy();
   }, [startDate]);
 
-  // 高さ連携
+  // 高さを親(Bubble)に伝える
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -188,7 +189,7 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
     );
   }, [days, busyList, selectedDayKey, selectedTime]);
 
-  // 日付をスライド
+  // 日付をスライド（今日〜2週間の範囲にクランプ）
   const shiftDays = (diff: number) => {
     setStartDate((prev) => {
       const next = new Date(prev);
@@ -211,6 +212,7 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
   const handleSelectTime = (day: Date, slot: string) => {
     const dKey = dateKey(day);
 
+    // 同じ枠をもう一度クリックしたらクリア
     if (selectedDayKey === dKey && selectedTime === slot) {
       setSelectedDayKey(null);
       setSelectedTime(null);
@@ -228,7 +230,6 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
           "*"
         );
       }
-
       return;
     }
 
@@ -247,7 +248,7 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
         fontSize: 12,
         color: "#333333",
         backgroundColor: bgColor,
-        minHeight: "100vh", // ← iframe 全面を塗る
+        minHeight: "100vh",
       }}
     >
       {/* 年表示 */}
@@ -310,6 +311,7 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
             }}
           >
             →
+
           </button>
         </div>
 
@@ -324,8 +326,7 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
         >
           {days.map((day) => {
             const dKey = dateKey(day);
-            const isSelected =
-              dKey === selectedDayKey && selectedTime !== null;
+            const isSelected = dKey === selectedDayKey && selectedTime !== null;
 
             const todayLocal = getToday();
             const isToday = isSameDay(day, todayLocal);
@@ -348,6 +349,7 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
                   gap: 4,
                 }}
               >
+                {/* 月ラベル */}
                 <div
                   style={{
                     height: 16,
@@ -360,6 +362,7 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
                   {showMonthLabel ? `${day.getMonth() + 1}月` : ""}
                 </div>
 
+                {/* 曜日 */}
                 <div
                   style={{
                     fontSize: 13,
@@ -369,6 +372,7 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
                   {weekday}
                 </div>
 
+                {/* 日付ボタン（クリックしても状態は変えない） */}
                 <button
                   type="button"
                   onClick={(e) => e.preventDefault()}
@@ -413,56 +417,55 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
                   gap: 8,
                 }}
               >
-{TIME_SLOTS.map((slot) => {
-  const nowLocal = new Date();
-  const isToday = isSameDay(day, nowLocal);
-  const slotDate = buildDateTime(day, slot);
-  const isPastTime = isToday && slotDate <= nowLocal;
+                {TIME_SLOTS.map((slot) => {
+                  const nowLocal = new Date();
+                  const isToday = isSameDay(day, nowLocal);
+                  const slotDate = buildDateTime(day, slot);
+                  const isPastTime = isToday && slotDate <= nowLocal;
 
-  const busy = isBusySlot(day, slot, busyList);
+                  const busy = isBusySlot(day, slot, busyList);
 
-  // どんな理由であれ「過去の時間」は無条件で disabled
-  const disabled = isPastTime || busy;
+                  // ★ 過去時間 or busy のどちらかなら必ず disabled
+                  const disabled = isPastTime || busy;
 
-  // 表示用の色をシンプルに決める
-  let bg = "#ffffff";
-  let textColor = "#1a73e8";
+                  const isSelected = isSelectedDay && selectedTime === slot;
 
-  if (disabled) {
-    // 埋まってる or 過去 → 常に同じグレー
-    bg = "#f5f5f5";
-    textColor = "#cccccc";
-  } else if (isSelectedDay && selectedTime === slot) {
-    // 選択中
-    bg = "#1a73e8";
-    textColor = "#ffffff";
-  }
+                  let bg = "#ffffff";
+                  let textColor = "#1a73e8";
 
-  return (
-    <button
-      key={slot}
-      type="button"
-      disabled={disabled}
-      onClick={() => {
-        if (disabled) return;
-        handleSelectTime(day, slot);
-      }}
-      style={{
-        width: "100%",
-        minHeight: 32,
-        borderRadius: 16,
-        border: "1px solid #e0e0e0",
-        backgroundColor: bg,
-        color: textColor,
-        fontSize: 12,
-        cursor: disabled ? "not-allowed" : "pointer",
-      }}
-    >
-      {slot}
-    </button>
-  );
-})}
+                  if (disabled) {
+                    // ★ 過去＆埋まりは同じグレー
+                    bg = "#f5f5f5";
+                    textColor = "#cccccc";
+                  } else if (isSelected) {
+                    bg = "#1a73e8";
+                    textColor = "#ffffff";
+                  }
 
+                  return (
+                    <button
+                      key={slot}
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => {
+                        if (disabled) return;
+                        handleSelectTime(day, slot);
+                      }}
+                      style={{
+                        width: "100%",
+                        minHeight: 32,
+                        borderRadius: 16,
+                        border: "1px solid #e0e0e0",
+                        backgroundColor: bg,
+                        color: textColor,
+                        fontSize: 12,
+                        cursor: disabled ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      {slot}
+                    </button>
+                  );
+                })}
               </div>
             );
           })}
