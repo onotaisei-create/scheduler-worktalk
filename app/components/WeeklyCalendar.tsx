@@ -7,9 +7,8 @@ type WeeklyCalendarProps = {
   employeeId?: string;
   userId?: string;
   embed?: boolean;
-  bgColor?: string;    // ★ 追加
+  bgColor?: string; // ★ 追加
 };
-
 
 // 忙しい時間帯のリスト（freeBusy のレスポンスそのまま持つ）
 type BusySlot = { start: string; end: string };
@@ -37,7 +36,6 @@ const isBusySlot = (day: Date, time: string, busy: BusySlot[]) => {
   const slotStart = buildDateTime(day, time);
   const slotEnd = new Date(slotStart.getTime() + 60 * 60 * 1000); // 1時間枠
 
-  // 区間が少しでも重なっていれば busy とみなす
   return busy.some(({ start, end }) => {
     const busyStart = new Date(start);
     const busyEnd = new Date(end);
@@ -53,7 +51,7 @@ const dateKey = (d: Date) => {
   return `${y}-${m}-${day}`;
 };
 
-// 今日（00:00に丸めた値）を取得
+// 今日（00:00に丸めた値）
 const getToday = () => {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
@@ -70,23 +68,23 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
   employeeId,
   userId,
   embed,
-  bgColor = "#ffffff",   // ★ デフォルト白
+  bgColor = "#ffffff", // デフォルト白
 }) => {
   const [busyList, setBusyList] = useState<BusySlot[]>([]);
 
   // 範囲計算用の「今日」
-const [todayBase] = useState<Date>(() => getToday());
+  const [todayBase] = useState<Date>(() => getToday());
 
-// 今日から2週間後
-const twoWeeksLater = useMemo(() => {
-  const d = new Date(todayBase);
-  d.setDate(d.getDate() + 14);   // ← ここが「14日後 = 2週間」
-  d.setHours(0, 0, 0, 0);
-  return d;
-}, [todayBase]);
+  // 今日から 2 週間後
+  const twoWeeksLater = useMemo(() => {
+    const d = new Date(todayBase);
+    d.setDate(d.getDate() + 14);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, [todayBase]);
 
-// 表示開始日
-const [startDate, setStartDate] = useState<Date>(() => getToday());
+  // 表示開始日
+  const [startDate, setStartDate] = useState<Date>(() => getToday());
 
   const days = useMemo(
     () =>
@@ -106,17 +104,11 @@ const [startDate, setStartDate] = useState<Date>(() => getToday());
   useEffect(() => {
     if (!selectedDayKey || !selectedTime) return;
 
-    // 時刻（"09:00" みたいな文字列）を数値に
-    const [hour, minute] = selectedTime.split(":").map((v) => Number(v));
-
-    // YYYY-MM-DD を分解して「ローカル日時」を作る
-    const [y, m, d] = selectedDayKey.split("-").map((v) => Number(v));
-    const start = new Date(y, m - 1, d, hour, minute, 0, 0); // ローカル基準
-
-    // 1時間固定イベント
+    const [hour, minute] = selectedTime.split(":").map(Number);
+    const [y, m, d] = selectedDayKey.split("-").map(Number);
+    const start = new Date(y, m - 1, d, hour, minute, 0, 0);
     const end = new Date(start.getTime() + 60 * 60 * 1000);
 
-    // ラベル（Bubble に表示する "12/7(日) 18:00" みたいな文字）
     const label = start.toLocaleString("ja-JP", {
       month: "numeric",
       weekday: "short",
@@ -126,7 +118,6 @@ const [startDate, setStartDate] = useState<Date>(() => getToday());
       hour12: false,
     });
 
-    // Bubble 側へ postMessage
     if (typeof window !== "undefined" && window.parent) {
       window.parent.postMessage(
         {
@@ -142,7 +133,7 @@ const [startDate, setStartDate] = useState<Date>(() => getToday());
     }
   }, [selectedDayKey, selectedTime, employeeId, userId]);
 
-  // 表示している 5 日分の busy を取得
+  // 表示中 5 日分の busy を取得
   useEffect(() => {
     const fetchBusy = async () => {
       try {
@@ -174,43 +165,38 @@ const [startDate, setStartDate] = useState<Date>(() => getToday());
     fetchBusy();
   }, [startDate]);
 
-  // 既存の useEffect（Bubble に選択結果を送るやつ）や
-// busy を fetch する useEffect の「下あたり」に追加してください。
+  // 高さ連携
+  useEffect(() => {
+    if (typeof window === "undefined") return;
 
-useEffect(() => {
-  if (typeof window === "undefined") return;
+    const doc = document.documentElement;
+    const body = document.body;
 
-  // ページ全体の高さをざっくり取得
-  const doc = document.documentElement;
-  const body = document.body;
+    const height = Math.max(
+      doc.scrollHeight,
+      doc.offsetHeight,
+      body.scrollHeight,
+      body.offsetHeight
+    );
 
-  const height = Math.max(
-    doc.scrollHeight,
-    doc.offsetHeight,
-    body.scrollHeight,
-    body.offsetHeight
-  );
+    window.parent?.postMessage(
+      {
+        type: "WORKTALK_SCHEDULER_HEIGHT",
+        height,
+      },
+      "*"
+    );
+  }, [days, busyList, selectedDayKey, selectedTime]);
 
-  // 親（Bubble 側）へ高さを通知
-  window.parent?.postMessage(
-    {
-      type: "WORKTALK_SCHEDULER_HEIGHT",
-      height,
-    },
-    "*"
-  );
-}, [/* 高さが変わりそうな状態を入れる */ days, busyList, selectedDayKey, selectedTime]);
-
-  // 日付をスライド（今日〜1ヶ月以内にクランプ）
+  // 日付をスライド
   const shiftDays = (diff: number) => {
     setStartDate((prev) => {
       const next = new Date(prev);
       next.setDate(next.getDate() + diff);
       next.setHours(0, 0, 0, 0);
 
-      const minStart = new Date(todayBase); // 最小は今日
+      const minStart = new Date(todayBase);
       const maxStart = new Date(twoWeeksLater);
- // 最大は「1ヶ月後 - (VISIBLE_DAYS-1)」
       maxStart.setDate(maxStart.getDate() - (VISIBLE_DAYS - 1));
       maxStart.setHours(0, 0, 0, 0);
 
@@ -223,51 +209,48 @@ useEffect(() => {
   };
 
   const handleSelectTime = (day: Date, slot: string) => {
-  const dKey = dateKey(day);
+    const dKey = dateKey(day);
 
-  // すでに選択中の枠をもう一度クリックしたら「クリア」
-  if (selectedDayKey === dKey && selectedTime === slot) {
-    setSelectedDayKey(null);
-    setSelectedTime(null);
+    if (selectedDayKey === dKey && selectedTime === slot) {
+      setSelectedDayKey(null);
+      setSelectedTime(null);
 
-    // Bubble 側の hidden input もクリアするために空で postMessage
-    if (typeof window !== "undefined" && window.parent) {
-      window.parent.postMessage(
-        {
-          type: "WORKTALK_SCHEDULE_SELECTED",
-          label: "",
-          startIso: "",
-          endIso: "",
-          employeeId: employeeId ?? null,
-          userId: userId ?? null,
-        },
-        "*"
-      );
+      if (typeof window !== "undefined" && window.parent) {
+        window.parent.postMessage(
+          {
+            type: "WORKTALK_SCHEDULE_SELECTED",
+            label: "",
+            startIso: "",
+            endIso: "",
+            employeeId: employeeId ?? null,
+            userId: userId ?? null,
+          },
+          "*"
+        );
+      }
+
+      return;
     }
 
-    return;
-  }
+    setSelectedDayKey(dKey);
+    setSelectedTime(slot);
+  };
 
-  // それ以外（別の時間 or 別の日）は普通に選択
-  setSelectedDayKey(dKey);
-  setSelectedTime(slot);
-};
-
-
-  // 表示中のカレンダーの年（左端の日付ベース）
-  const currentYear = days.length > 0 ? days[0].getFullYear() : todayBase.getFullYear();
+  const currentYear =
+    days.length > 0 ? days[0].getFullYear() : todayBase.getFullYear();
 
   return (
     <section
       style={{
         fontFamily:
-          '"Noto Sans JP", system-ui, -apple-system, BlinkMacSystemFont',
+          '"Noto Sans JP", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
         fontSize: 12,
         color: "#333333",
-        backgroundColor: bgColor,   // 常に白
+        backgroundColor: bgColor,
+        minHeight: "100vh", // ← iframe 全面を塗る
       }}
     >
-      {/* 年表示（表示中の範囲に合わせる） */}
+      {/* 年表示 */}
       <div
         style={{
           textAlign: "center",
@@ -287,7 +270,7 @@ useEffect(() => {
           margin: "0 auto",
         }}
       >
-        {/* 上のナビゲーション（UIそのまま） */}
+        {/* ナビゲーション */}
         <div
           style={{
             display: "flex",
@@ -330,7 +313,7 @@ useEffect(() => {
           </button>
         </div>
 
-        {/* 日付のヘッダ */}
+        {/* 日付ヘッダ */}
         <div
           style={{
             display: "flex",
@@ -340,80 +323,73 @@ useEffect(() => {
           }}
         >
           {days.map((day) => {
-  const dKey = dateKey(day);
+            const dKey = dateKey(day);
+            const isSelected =
+              dKey === selectedDayKey && selectedTime !== null;
 
-  // 「その日が選択されていて、かつ時間も選択されているときだけ」青くする
-  const isSelected = dKey === selectedDayKey && selectedTime !== null;
+            const todayLocal = getToday();
+            const isToday = isSameDay(day, todayLocal);
+            const isFirstOfMonth = day.getDate() === 1;
+            const showMonthLabel = isToday || isFirstOfMonth;
 
-  const todayLocal = getToday();
-  const isToday = isSameDay(day, todayLocal);
-  const isFirstOfMonth = day.getDate() === 1;
-  const showMonthLabel = isToday || isFirstOfMonth;
+            const weekday = day.toLocaleDateString("ja-JP", {
+              weekday: "short",
+            });
+            const dayNum = day.getDate();
 
-  const weekday = day.toLocaleDateString("ja-JP", {
-    weekday: "short",
-  });
-  const dayNum = day.getDate();
+            return (
+              <div
+                key={dKey}
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 4,
+                }}
+              >
+                <div
+                  style={{
+                    height: 16,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: "#666666",
+                    visibility: showMonthLabel ? "visible" : "hidden",
+                  }}
+                >
+                  {showMonthLabel ? `${day.getMonth() + 1}月` : ""}
+                </div>
 
-  return (
-    <div
-      key={dKey}
-      style={{
-        flex: 1,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: 4,
-      }}
-    >
-      {/* 月ラベル */}
-      <div
-        style={{
-          height: 16,
-          fontSize: 13,
-          fontWeight: 600,
-          color: "#666666",
-          visibility: showMonthLabel ? "visible" : "hidden",
-        }}
-      >
-        {showMonthLabel ? `${day.getMonth() + 1}月` : ""}
-      </div>
+                <div
+                  style={{
+                    fontSize: 13,
+                    color: "#666666",
+                  }}
+                >
+                  {weekday}
+                </div>
 
-      {/* 曜日 */}
-      <div
-        style={{
-          fontSize: 13,
-          color: "#666666",
-        }}
-      >
-        {weekday}
-      </div>
-
-      {/* 日付ボタン（クリックしても状態は変えない） */}
-      <button
-        type="button"
-        onClick={(e) => {
-          // 日付クリックでは何もしない
-          e.preventDefault();
-        }}
-        style={{
-          width: 40,
-          height: 40,
-          borderRadius: "20px",
-          border: "1px solid #e0e0e0",
-          backgroundColor: isSelected ? "#1a73e8" : "#ffffff",
-          color: isSelected ? "#ffffff" : "#333333",
-          fontSize: 14,
-          fontWeight: 500,
-          cursor: "default", // 手のカーソルにしない
-        }}
-      >
-        {dayNum}
-      </button>
-    </div>
-  );
-})}
-</div>
+                <button
+                  type="button"
+                  onClick={(e) => e.preventDefault()}
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: "20px",
+                    border: "1px solid #e0e0e0",
+                    backgroundColor: isSelected ? "#1a73e8" : "#ffffff",
+                    color: isSelected ? "#ffffff" : "#333333",
+                    fontSize: 14,
+                    fontWeight: 500,
+                    cursor: "default",
+                  }}
+                >
+                  {dayNum}
+                </button>
+              </div>
+            );
+          })}
+        </div>
 
         {/* 時間ボタン一覧 */}
         <div
@@ -440,7 +416,6 @@ useEffect(() => {
                 {TIME_SLOTS.map((slot) => {
                   const isSelected = isSelectedDay && selectedTime === slot;
 
-                  // 「今日の過去時間」をグレーアウト＋クリック不可
                   const nowLocal = new Date();
                   const isToday = isSameDay(day, nowLocal);
                   const slotDate = buildDateTime(day, slot);
@@ -466,7 +441,7 @@ useEffect(() => {
                       key={slot}
                       type="button"
                       onClick={() => {
-                        if (disabled) return; // 埋まっている枠・過去枠はクリック無効
+                        if (disabled) return;
                         handleSelectTime(day, slot);
                       }}
                       disabled={disabled}
