@@ -413,53 +413,56 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
                   gap: 8,
                 }}
               >
-                {TIME_SLOTS.map((slot) => {
-                  const isSelected = isSelectedDay && selectedTime === slot;
+{TIME_SLOTS.map((slot) => {
+  const nowLocal = new Date();
+  const isToday = isSameDay(day, nowLocal);
+  const slotDate = buildDateTime(day, slot);
+  const isPastTime = isToday && slotDate <= nowLocal;
 
-                  const nowLocal = new Date();
-                  const isToday = isSameDay(day, nowLocal);
-                  const slotDate = buildDateTime(day, slot);
-                  const isPastTime = isToday && slotDate <= nowLocal;
+  const busy = isBusySlot(day, slot, busyList);
 
-                  const disabled =
-                    isBusySlot(day, slot, busyList) || isPastTime;
+  // どんな理由であれ「過去の時間」は無条件で disabled
+  const disabled = isPastTime || busy;
 
-                  const bg = isSelected
-                    ? "#1a73e8"
-                    : disabled
-                    ? "#f5f5f5"
-                    : "#ffffff";
+  // 表示用の色をシンプルに決める
+  let bg = "#ffffff";
+  let textColor = "#1a73e8";
 
-                  const textColor = isSelected
-                    ? "#ffffff"
-                    : disabled
-                    ? "#cccccc"
-                    : "#1a73e8";
+  if (disabled) {
+    // 埋まってる or 過去 → 常に同じグレー
+    bg = "#f5f5f5";
+    textColor = "#cccccc";
+  } else if (isSelectedDay && selectedTime === slot) {
+    // 選択中
+    bg = "#1a73e8";
+    textColor = "#ffffff";
+  }
 
-                  return (
-                    <button
-                      key={slot}
-                      type="button"
-                      onClick={() => {
-                        if (disabled) return;
-                        handleSelectTime(day, slot);
-                      }}
-                      disabled={disabled}
-                      style={{
-                        width: "100%",
-                        minHeight: 32,
-                        borderRadius: 16,
-                        border: "1px solid #e0e0e0",
-                        backgroundColor: bg,
-                        color: textColor,
-                        fontSize: 12,
-                        cursor: disabled ? "not-allowed" : "pointer",
-                      }}
-                    >
-                      {slot}
-                    </button>
-                  );
-                })}
+  return (
+    <button
+      key={slot}
+      type="button"
+      disabled={disabled}
+      onClick={() => {
+        if (disabled) return;
+        handleSelectTime(day, slot);
+      }}
+      style={{
+        width: "100%",
+        minHeight: 32,
+        borderRadius: 16,
+        border: "1px solid #e0e0e0",
+        backgroundColor: bg,
+        color: textColor,
+        fontSize: 12,
+        cursor: disabled ? "not-allowed" : "pointer",
+      }}
+    >
+      {slot}
+    </button>
+  );
+})}
+
               </div>
             );
           })}
