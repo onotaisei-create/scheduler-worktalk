@@ -406,9 +406,6 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
             const dKey = dateKey(day);
             const isSelectedDay = selectedDayKey === dKey;
 
-            // ★ 「今」の時刻（ミリ秒）を一度だけ取得
-            const now = Date.now();
-
             return (
               <div
                 key={dKey + "-times"}
@@ -420,15 +417,17 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
                 }}
               >
                 {TIME_SLOTS.map((slot) => {
+                  const nowLocal = new Date();
+                  const isToday = isSameDay(day, nowLocal);
                   const slotDate = buildDateTime(day, slot);
 
-                  // ★ ここで「現在時刻より過去」かどうかを判定
-                  const isPastTime = slotDate.getTime() <= now;
+                  // 現在時刻より過去か？
+                  const isPastTime = isToday && slotDate <= nowLocal;
 
                   // その枠が busy に含まれているか？
                   const busy = isBusySlot(day, slot, busyList);
 
-                  // ★ 「過去時間 or busy」のどちらかなら必ず disabled
+                  // 「過去時間 or busy」のどちらかなら必ず disabled
                   const disabled = isPastTime || busy;
 
                   const isSelected =
@@ -440,11 +439,11 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
                   let opacity = 1;
 
                   if (disabled) {
-                    // ★ 過去 or 埋まり枠：同じ見た目でグレーアウト
+                    // ★ 過去 or 埋まり枠：しっかりグレーアウト
                     bg = "#f0f0f0";
                     textColor = "#b3b3b3";
                     borderColor = "#e0e0e0";
-                    opacity = 1;
+                    opacity = 1; // ここを 0.7 などにしてもさらに薄くできます
                   } else if (isSelected) {
                     bg = "#1a73e8";
                     textColor = "#ffffff";
