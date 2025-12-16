@@ -7,7 +7,28 @@ type RequestBody = {
   start_time?: string; // Bubble から来る UTC の ISO 文字列（例: 2025-12-14T11:00:00.000Z）
   duration?: number;
   timezone?: string;
+
+  // ★ 追加: どの社員のミーティングか（emp_ogiso / emp_ishimoto / emp_bito など）
+  employeeId?: string;
 };
+
+/**
+ * ▼ 社員ID → Zoom ユーザーID（通常はメールアドレス）マッピング
+ *   Zoom アカウント配下に登録されているユーザーのメールアドレスを入れてください。
+ */
+const EMPLOYEE_ZOOM_USER_MAP: Record<string, string> = {
+  emp_ogiso: "ogiso.keisuke@my-career.co.jp",
+  emp_ishimoto: "ishimoto.yoshihiro@my-career.co.jp",
+  emp_bito: "bito.riku@my-career.co.jp",
+};
+
+// デフォルトは小木曽さん
+const DEFAULT_ZOOM_USER = EMPLOYEE_ZOOM_USER_MAP.emp_ogiso;
+
+function resolveZoomUserId(employeeId?: string | null): string {
+  if (!employeeId) return DEFAULT_ZOOM_USER;
+  return EMPLOYEE_ZOOM_USER_MAP[employeeId] ?? DEFAULT_ZOOM_USER;
+}
 
 /**
  * UTC の ISO 文字列（"2025-12-14T11:00:00.000Z" など）を
@@ -54,6 +75,9 @@ export async function POST(req: NextRequest) {
     const duration = body.duration ?? 30; // 分
     const timezone = body.timezone || "Asia/Tokyo";
 
+    // ★ ここで employeeId を解決して、どの Zoom ユーザーでミーティングを作るか決める
+    const zoomUserId = resolveZoomUserId(body.employeeId);
+
     if (!rawStartTime) {
       return NextResponse.json(
         { error: "start_time is required" },
@@ -85,6 +109,7 @@ export async function POST(req: NextRequest) {
       "base64"
     );
 
+    // ★ account_credentials（Server-to-Server OAuth）でトークン取得
     const tokenRes = await fetch(
       `https://zoom.us/oauth/token?grant_type=account_credentials&account_id=${accountId}`,
       {
@@ -108,8 +133,11 @@ export async function POST(req: NextRequest) {
     const accessToken = tokenJson.access_token as string;
 
     // ===== Zoom ミーティング作成 =====
+    // ★ ここを `/users/me/meetings` → `/users/{その社員のZoomユーザー}/meetings` に変更
     const createMeetingRes = await fetch(
-      "https://api.zoom.us/v2/users/me/meetings",
+      `https://api.zoom.us/v2/users/${encodeURIComponent(
+        zoomUserId
+      )}/meetings`,
       {
         method: "POST",
         headers: {
