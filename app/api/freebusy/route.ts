@@ -3,19 +3,35 @@ import { NextResponse } from "next/server";
 import crypto from "crypto";
 
 // ▼ 社員ID → GoogleカレンダーID
-//   ※ここは実際のカレンダーIDに必ず置き換えてください
+//   ※ ここは「サービスアカウントから実際に読めるカレンダーID」にしてください。
+//   ※ まだ準備できていない社員はコメントアウトでもOKです。
 const EMPLOYEE_CALENDAR_MAP: Record<string, string> = {
   emp_ogiso: "ogiso.keisuke@my-career.co.jp",
   emp_ishimoto: "ishimoto.yoshihiro@my-career.co.jp",
   emp_bito: "bito.riku@my-career.co.jp",
 };
 
-// デフォルト（指定がない／マッチしない場合）は小木曽さん
-const DEFAULT_CALENDAR_ID = EMPLOYEE_CALENDAR_MAP.emp_ogiso;
+// ▼ デフォルトのカレンダーID（今まで使っていた GOOGLE_CALENDAR_ID）
+function getDefaultCalendarId(): string {
+  const envId = process.env.GOOGLE_CALENDAR_ID;
+  if (!envId) {
+    throw new Error("GOOGLE_CALENDAR_ID が設定されていません");
+  }
+  return envId;
+}
 
+// ▼ employeeId から、実際に問い合わせるカレンダーIDを決定
+//   1. EMPLOYEE_CALENDAR_MAP にあればそれを使う
+//   2. なければ、今まで通り GOOGLE_CALENDAR_ID を使う
 function resolveCalendarId(employeeId: string | null): string {
-  if (!employeeId) return DEFAULT_CALENDAR_ID;
-  return EMPLOYEE_CALENDAR_MAP[employeeId] ?? DEFAULT_CALENDAR_ID;
+  if (employeeId) {
+    const mapped = EMPLOYEE_CALENDAR_MAP[employeeId];
+    if (mapped) {
+      return mapped;
+    }
+  }
+  // マップにない or employeeId が null の場合はデフォルト
+  return getDefaultCalendarId();
 }
 
 const SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
@@ -112,7 +128,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const timeMin = searchParams.get("timeMin");
     const timeMax = searchParams.get("timeMax");
-    const employeeId = searchParams.get("employee_id"); // ★ ここで受け取る
+    const employeeId = searchParams.get("employee_id"); // ← ここで受け取る
 
     if (!timeMin || !timeMax) {
       return NextResponse.json(
@@ -121,7 +137,7 @@ export async function GET(req: Request) {
       );
     }
 
-    // ここで「どのカレンダーを見るか」を決める
+    // ★ どのカレンダーを見るかを決定（社員ID → カレンダーID or デフォルト）
     const calendarId = resolveCalendarId(employeeId);
 
     const accessToken = await getAccessToken();
