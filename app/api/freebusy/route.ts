@@ -1,7 +1,22 @@
 // app/api/freebusy/route.ts
-
 import { NextResponse } from "next/server";
 import crypto from "crypto";
+
+// ▼ 社員ID → GoogleカレンダーID
+//   ※ここは実際のカレンダーIDに必ず置き換えてください
+const EMPLOYEE_CALENDAR_MAP: Record<string, string> = {
+  emp_ogiso: "ogiso.keisuke@my-career.co.jp",
+  emp_ishimoto: "ishimoto.yoshihiro@my-career.co.jp",
+  emp_bito: "bito.riku@my-career.co.jp",
+};
+
+// デフォルト（指定がない／マッチしない場合）は小木曽さん
+const DEFAULT_CALENDAR_ID = EMPLOYEE_CALENDAR_MAP.emp_ogiso;
+
+function resolveCalendarId(employeeId: string | null): string {
+  if (!employeeId) return DEFAULT_CALENDAR_ID;
+  return EMPLOYEE_CALENDAR_MAP[employeeId] ?? DEFAULT_CALENDAR_ID;
+}
 
 const SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
 
@@ -97,6 +112,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const timeMin = searchParams.get("timeMin");
     const timeMax = searchParams.get("timeMax");
+    const employeeId = searchParams.get("employee_id"); // ★ ここで受け取る
 
     if (!timeMin || !timeMax) {
       return NextResponse.json(
@@ -105,40 +121,35 @@ export async function GET(req: Request) {
       );
     }
 
-    const token = await getAccessToken();
+    // ここで「どのカレンダーを見るか」を決める
+    const calendarId = resolveCalendarId(employeeId);
 
-    const calendarId = process.env.GOOGLE_CALENDAR_ID;
-    if (!calendarId) {
-      throw new Error("GOOGLE_CALENDAR_ID が設定されていません");
-    }
+    const accessToken = await getAccessToken();
 
-    const body = {
-      timeMin,
-      timeMax,
-      timeZone: "Asia/Tokyo",
-      items: [{ id: calendarId }],
-    };
-
-    const res = await fetch(
+    const googleRes = await fetch(
       "https://www.googleapis.com/calendar/v3/freeBusy",
       {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          timeMin,
+          timeMax,
+          timeZone: "Asia/Tokyo",
+          items: [{ id: calendarId }],
+        }),
       }
     );
 
-    if (!res.ok) {
-      console.error("freeBusy error", await res.text());
+    if (!googleRes.ok) {
+      console.error("freeBusy error", await googleRes.text());
       return NextResponse.json({ error: "freeBusy error" }, { status: 500 });
     }
 
-    const data = (await res.json()) as FreeBusyResponse;
+    const data = (await googleRes.json()) as FreeBusyResponse;
 
-    // ✅ 型をちゃんと定義したうえで calendarId で参照
     const calendars = data.calendars ?? {};
     const busy = calendars[calendarId]?.busy ?? [];
 
