@@ -184,7 +184,7 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
     }
   }, [selectedDayKey, selectedTime, employeeId, userId]);
 
-  // 表示している 5 日分の busy を取得
+  // 表示している 5 日分の busy を取得（employeeId も渡す）
   useEffect(() => {
     const fetchBusy = async () => {
       try {
@@ -195,11 +195,17 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
         timeMax.setDate(timeMax.getDate() + VISIBLE_DAYS);
         timeMax.setHours(23, 59, 59, 999);
 
-        const res = await fetch(
-          `/api/freebusy?timeMin=${encodeURIComponent(
-            timeMin.toISOString()
-          )}&timeMax=${encodeURIComponent(timeMax.toISOString())}`
-        );
+        const params = new URLSearchParams({
+          timeMin: timeMin.toISOString(),
+          timeMax: timeMax.toISOString(),
+        });
+
+        // 社員 ID があれば一緒に送る
+        if (employeeId) {
+          params.set("employee_id", employeeId);
+        }
+
+        const res = await fetch(`/api/freebusy?${params.toString()}`, { cache: "no-store" });
 
         if (!res.ok) {
           console.error("freebusy fetch error");
@@ -214,9 +220,9 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
     };
 
     fetchBusy();
-  }, [startDate]);
+  }, [startDate, employeeId]);
 
-    // マウント後に現在時刻をセット（SSR とのズレをなくす）
+  // マウント後に現在時刻をセット（SSR とのズレをなくす）
   useEffect(() => {
     // 初回
     setNowMs(Date.now());
@@ -228,7 +234,6 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
 
     return () => clearInterval(timer);
   }, []);
-
 
   // 高さを親(Bubble)に伝える
   useEffect(() => {
@@ -311,7 +316,7 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
           '"Noto Sans JP", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
         fontSize: 12,
         color: "#333333",
-        backgroundColor: bgColor, // ← ここに最終決定された背景色が入る
+        backgroundColor: bgColor,
         minHeight: "100vh",
       }}
     >
@@ -458,7 +463,7 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
           })}
         </div>
 
-               {/* 時間ボタン一覧 */}
+        {/* 時間ボタン一覧 */}
         <div
           style={{
             display: "flex",
@@ -484,14 +489,14 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
                   // この枠の日時
                   const slotDate = buildDateTime(day, slot);
 
-                  // ★ nowMs が null の間は「過去扱いしない」＝ false
+                  // nowMs が null の間は「過去扱いしない」
                   const isPastTime =
                     nowMs !== null && slotDate.getTime() <= nowMs;
 
                   // freebusy で埋まっているか
                   const busy = isBusySlot(day, slot, busyList);
 
-                  // ★「過去」または「busy」なら必ず disabled
+                  // 「過去」または「busy」なら必ず disabled
                   const disabled = isPastTime || busy;
 
                   const isSelected = isSelectedDay && selectedTime === slot;
@@ -536,7 +541,6 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
             );
           })}
         </div>
-
       </div>
     </section>
   );

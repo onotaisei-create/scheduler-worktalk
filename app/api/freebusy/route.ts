@@ -2,37 +2,37 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+const SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
+
 // ▼ 社員ID → GoogleカレンダーID
-//   ※ サービスアカウントから実際に読めるカレンダーIDにしてください。
 const EMPLOYEE_CALENDAR_MAP: Record<string, string> = {
   emp_ogiso: "ogiso.keisuke@my-career.co.jp",
   emp_ishimoto: "ishimoto.yoshihiro@my-career.co.jp",
   emp_bito: "bito.riku@my-career.co.jp",
 };
 
-// ▼ デフォルトのカレンダーID（今まで使っていたもの）
-function getDefaultCalendarId(): string {
-  const envId = process.env.GOOGLE_CALENDAR_ID;
-  if (!envId) {
-    throw new Error("GOOGLE_CALENDAR_ID が設定されていません");
-  }
-  return envId;
-}
+const DEFAULT_CALENDAR_ID = EMPLOYEE_CALENDAR_MAP.emp_ogiso;
 
-// ▼ employeeId から、まず試すカレンダーIDを決める
 function resolveCalendarId(employeeId: string | null): string {
-  if (employeeId) {
-    const mapped = EMPLOYEE_CALENDAR_MAP[employeeId];
-    if (mapped) return mapped;
-  }
-  return getDefaultCalendarId();
+  if (!employeeId) return DEFAULT_CALENDAR_ID;
+  return EMPLOYEE_CALENDAR_MAP[employeeId] ?? DEFAULT_CALENDAR_ID;
 }
 
-const SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
+type FreeBusyResponse = {
+  calendars?: Record<string, { busy?: { start: string; end: string }[] }>;
+};
 
-// =====================
-// JWT を作る関数
-// =====================
+function base64url(obj: unknown) {
+  return Buffer.from(JSON.stringify(obj))
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+/g, "");
+}
+
 function getJwt() {
   const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   const key = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
@@ -43,27 +43,16 @@ function getJwt() {
 
   const privateKey = key.replace(/\\n/g, "\n");
 
-  const header = {
-    alg: "RS256",
-    typ: "JWT",
-  };
-
+  const header = { alg: "RS256", typ: "JWT" };
   const now = Math.floor(Date.now() / 1000);
 
   const payload = {
     iss: email,
     scope: SCOPES.join(" "),
     aud: "https://oauth2.googleapis.com/token",
-    exp: now + 60 * 60, // 1時間有効
+    exp: now + 60 * 60,
     iat: now,
   };
-
-  const base64url = (obj: unknown) =>
-    Buffer.from(JSON.stringify(obj))
-      .toString("base64")
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_")
-      .replace(/=+/g, "");
 
   const headerPart = base64url(header);
   const payloadPart = base64url(payload);
@@ -71,6 +60,7 @@ function getJwt() {
 
   const signer = crypto.createSign("RSA-SHA256");
   signer.update(data);
+
   const signature = signer
     .sign(privateKey, "base64")
     .replace(/\+/g, "-")
@@ -80,9 +70,6 @@ function getJwt() {
   return `${data}.${signature}`;
 }
 
-// =====================
-// アクセストークン取得
-// =====================
 async function getAccessToken() {
   const jwt = getJwt();
 
@@ -93,6 +80,7 @@ async function getAccessToken() {
       grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
       assertion: jwt,
     }),
+    cache: "no-store",
   });
 
   if (!res.ok) {
@@ -104,56 +92,10 @@ async function getAccessToken() {
   return json.access_token as string;
 }
 
-// freeBusy API のレスポンス型（必要な部分だけ）
-type FreeBusyResponse = {
-  calendars?: Record<
-    string,
-    {
-      busy?: { start: string; end: string }[];
-    }
-  >;
-};
-
-// 特定のカレンダーIDで freeBusy を叩くヘルパー
-async function fetchBusyForCalendar(
-  accessToken: string,
-  calendarId: string,
-  timeMin: string,
-  timeMax: string
-): Promise<{ start: string; end: string }[] | null> {
-  const res = await fetch(
-    "https://www.googleapis.com/calendar/v3/freeBusy",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        timeMin,
-        timeMax,
-        timeZone: "Asia/Tokyo",
-        items: [{ id: calendarId }],
-      }),
-    }
-  );
-
-  if (!res.ok) {
-    console.error("freeBusy error for", calendarId, await res.text());
-    return null;
-  }
-
-  const data = (await res.json()) as FreeBusyResponse;
-  const calendars = data.calendars ?? {};
-  return calendars[calendarId]?.busy ?? [];
-}
-
-// =====================
-// /api/freebusy GET
-// =====================
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
+
     const timeMin = searchParams.get("timeMin");
     const timeMax = searchParams.get("timeMax");
     const employeeId = searchParams.get("employee_id");
@@ -165,37 +107,42 @@ export async function GET(req: Request) {
       );
     }
 
-    const accessToken = await getAccessToken();
+    // ★ ここが「どの社員のカレンダーを見に行くか」の確定値
+    const calendarId = resolveCalendarId(employeeId);
 
-    const defaultCalendarId = getDefaultCalendarId();
-    const primaryCalendarId = resolveCalendarId(employeeId);
+    const token = await getAccessToken();
 
-    // 1️⃣ まず社員ごとのカレンダー（or デフォルト）を試す
-    let busy =
-      (await fetchBusyForCalendar(
-        accessToken,
-        primaryCalendarId,
-        timeMin,
-        timeMax
-      )) ?? null;
-
-    // 2️⃣ 失敗していて、かつ「社員用ID ≠ デフォルト」の場合はデフォルトにフォールバック
-    if (busy === null && primaryCalendarId !== defaultCalendarId) {
-      busy =
-        (await fetchBusyForCalendar(
-          accessToken,
-          defaultCalendarId,
+    const googleRes = await fetch(
+      "https://www.googleapis.com/calendar/v3/freeBusy",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
           timeMin,
-          timeMax
-        )) ?? null;
-    }
+          timeMax,
+          timeZone: "Asia/Tokyo",
+          items: [{ id: calendarId }],
+        }),
+        cache: "no-store",
+      }
+    );
 
-    if (busy === null) {
-      // どちらも失敗した場合だけエラーにする
+    if (!googleRes.ok) {
+      console.error("freeBusy error", await googleRes.text());
       return NextResponse.json({ error: "freeBusy error" }, { status: 500 });
     }
 
-    return NextResponse.json({ busy });
+    const data = (await googleRes.json()) as FreeBusyResponse;
+    const busy = data.calendars?.[calendarId]?.busy ?? [];
+
+    // ★ デバッグしやすいように、今どのカレンダーを見たかも返します
+    return NextResponse.json(
+      { calendarId, busy },
+      { headers: { "Cache-Control": "no-store, max-age=0" } }
+    );
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: "server error" }, { status: 500 });
