@@ -71,28 +71,50 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
   embed,
   bgColor: bgColorProp = "#ffffff",
 }) => {
+  // ▼ URLから読んだ値（props が来ない場合の保険）
+  const [employeeIdFromUrl, setEmployeeIdFromUrl] = useState<string | null>(
+    null
+  );
+  const [userIdFromUrl, setUserIdFromUrl] = useState<string | null>(null);
+  const [embedFromUrl, setEmbedFromUrl] = useState<boolean | null>(null);
+
   // ▼ 背景色（初期値は props／URL から上書きする）
   const [bgColor, setBgColor] = useState<string>(bgColorProp);
 
-  // ▼ URL の ?bg=xxxxxx から背景色を決定（クライアント側で確実に動かす）
+  // ▼ URL のクエリを読み取る（employee_id / user_id / embed / bg）
   useEffect(() => {
     if (typeof window === "undefined") return;
 
+    const sp = new URLSearchParams(window.location.search);
+
+    // employee_id（Bubble iframe から渡ってくる）
+    const rawEmp = sp.get("employee_id") || sp.get("employeeId");
+    if (rawEmp && /^emp_[a-zA-Z0-9_-]+$/.test(rawEmp)) {
+      setEmployeeIdFromUrl(rawEmp);
+    } else {
+      setEmployeeIdFromUrl(null);
+    }
+
+    // user_id
+    const rawUser = sp.get("user_id") || sp.get("userId");
+    if (rawUser) setUserIdFromUrl(rawUser);
+    else setUserIdFromUrl(null);
+
+    // embed
+    const rawEmbed = sp.get("embed");
+    if (rawEmbed === "1" || rawEmbed === "true") setEmbedFromUrl(true);
+    else if (rawEmbed === "0" || rawEmbed === "false") setEmbedFromUrl(false);
+    else setEmbedFromUrl(null);
+
+    // bg
     let color = bgColorProp;
-
     try {
-      const sp = new URLSearchParams(window.location.search);
       const rawBg = sp.get("bg");
-
       if (rawBg) {
         let hex = rawBg.trim();
+        if (!hex.startsWith("#")) hex = `#${hex}`;
 
-        // 先頭に # がなければ付ける
-        if (!hex.startsWith("#")) {
-          hex = `#${hex}`;
-        }
-
-        // 3桁 (#abc) を 6桁 (#aabbcc) に展開
+        // 3桁 -> 6桁
         if (/^#[0-9a-fA-F]{3}$/.test(hex)) {
           const r = hex[1];
           const g = hex[2];
@@ -100,10 +122,7 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
           hex = `#${r}${r}${g}${g}${b}${b}`;
         }
 
-        // 最終的に 6桁なら採用
-        if (/^#[0-9a-fA-F]{6}$/.test(hex)) {
-          color = hex;
-        }
+        if (/^#[0-9a-fA-F]{6}$/.test(hex)) color = hex;
       }
     } catch (e) {
       console.error(e);
@@ -117,6 +136,11 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
       document.documentElement.style.backgroundColor = color;
     }
   }, [bgColorProp]);
+
+  // ✅ 実際に使う employeeId / userId / embed（props優先、なければURL）
+  const effectiveEmployeeId = employeeId ?? employeeIdFromUrl ?? undefined;
+  const effectiveUserId = userId ?? userIdFromUrl ?? undefined;
+  const effectiveEmbed = embed ?? embedFromUrl ?? false;
 
   const [busyList, setBusyList] = useState<BusySlot[]>([]);
 
@@ -176,15 +200,15 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
           label,
           startIso: start.toISOString(),
           endIso: end.toISOString(),
-          employeeId: employeeId ?? null,
-          userId: userId ?? null,
+          employeeId: effectiveEmployeeId ?? null,
+          userId: effectiveUserId ?? null,
         },
         "*"
       );
     }
-  }, [selectedDayKey, selectedTime, employeeId, userId]);
+  }, [selectedDayKey, selectedTime, effectiveEmployeeId, effectiveUserId]);
 
-  // 表示している 5 日分の busy を取得（employeeId も渡す）
+  // 表示している 5 日分の busy を取得（employee_id を必ず反映）
   useEffect(() => {
     const fetchBusy = async () => {
       try {
@@ -200,15 +224,17 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
           timeMax: timeMax.toISOString(),
         });
 
-        // 社員 ID があれば一緒に送る
-        if (employeeId) {
-          params.set("employee_id", employeeId);
+        if (effectiveEmployeeId) {
+          params.set("employee_id", effectiveEmployeeId);
         }
 
-        const res = await fetch(`/api/freebusy?${params.toString()}`, { cache: "no-store" });
+        const res = await fetch(`/api/freebusy?${params.toString()}`, {
+          cache: "no-store",
+        });
 
         if (!res.ok) {
           console.error("freebusy fetch error");
+          setBusyList([]); // 失敗時は一旦空にして誤選択を防ぎたいならここで全disableにする等も可能
           return;
         }
 
@@ -216,18 +242,17 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
         setBusyList(data.busy ?? []);
       } catch (e) {
         console.error(e);
+        setBusyList([]);
       }
     };
 
     fetchBusy();
-  }, [startDate, employeeId]);
+  }, [startDate, effectiveEmployeeId]);
 
   // マウント後に現在時刻をセット（SSR とのズレをなくす）
   useEffect(() => {
-    // 初回
     setNowMs(Date.now());
 
-    // 1分ごとに更新（ページを開いたままでも自動で過去枠になる）
     const timer = setInterval(() => {
       setNowMs(Date.now());
     }, 60 * 1000);
@@ -281,7 +306,6 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
   const handleSelectTime = (day: Date, slot: string) => {
     const dKey = dateKey(day);
 
-    // 同じ枠をもう一度クリックしたらクリア
     if (selectedDayKey === dKey && selectedTime === slot) {
       setSelectedDayKey(null);
       setSelectedTime(null);
@@ -293,8 +317,8 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
             label: "",
             startIso: "",
             endIso: "",
-            employeeId: employeeId ?? null,
-            userId: userId ?? null,
+            employeeId: effectiveEmployeeId ?? null,
+            userId: effectiveUserId ?? null,
           },
           "*"
         );
@@ -332,10 +356,9 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
         {currentYear}年
       </div>
 
-      {/* カレンダー全体ラッパー */}
       <div
         style={{
-          width: embed ? "100%" : 640,
+          width: effectiveEmbed ? "100%" : 640,
           maxWidth: "100%",
           margin: "0 auto",
         }}
@@ -417,7 +440,6 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
                   gap: 4,
                 }}
               >
-                {/* 月ラベル */}
                 <div
                   style={{
                     height: 16,
@@ -430,17 +452,8 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
                   {showMonthLabel ? `${day.getMonth() + 1}月` : ""}
                 </div>
 
-                {/* 曜日 */}
-                <div
-                  style={{
-                    fontSize: 13,
-                    color: "#666666",
-                  }}
-                >
-                  {weekday}
-                </div>
+                <div style={{ fontSize: 13, color: "#666666" }}>{weekday}</div>
 
-                {/* 日付ボタン（クリックしても状態は変えない） */}
                 <button
                   type="button"
                   onClick={(e) => e.preventDefault()}
@@ -486,17 +499,15 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
                 }}
               >
                 {TIME_SLOTS.map((slot) => {
-                  // この枠の日時
                   const slotDate = buildDateTime(day, slot);
 
                   // nowMs が null の間は「過去扱いしない」
                   const isPastTime =
                     nowMs !== null && slotDate.getTime() <= nowMs;
 
-                  // freebusy で埋まっているか
                   const busy = isBusySlot(day, slot, busyList);
 
-                  // 「過去」または「busy」なら必ず disabled
+                  // 「過去」または「busy」なら disabled
                   const disabled = isPastTime || busy;
 
                   const isSelected = isSelectedDay && selectedTime === slot;
@@ -505,7 +516,6 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
                   let textColor = "#1a73e8";
 
                   if (disabled) {
-                    // 過去枠も busy も同じグレー
                     bg = "#f5f5f5";
                     textColor = "#cccccc";
                   } else if (isSelected) {
@@ -519,7 +529,7 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
                       type="button"
                       disabled={disabled}
                       onClick={() => {
-                        if (disabled) return; // 念のためガード
+                        if (disabled) return;
                         handleSelectTime(day, slot);
                       }}
                       style={{
