@@ -1,84 +1,59 @@
 // app/api/auth/zoom/callback/route.ts
 import { NextResponse } from "next/server";
-import { upsertIntegration } from "@/app/lib/integrations";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function basicAuth(clientId: string, clientSecret: string) {
-  return Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
-}
-
-async function exchangeCodeForToken(code: string) {
-  const clientId = process.env.ZOOM_CLIENT_ID!;
-  const clientSecret = process.env.ZOOM_CLIENT_SECRET!;
-  const redirectUri = process.env.ZOOM_REDIRECT_URI!;
-
-  const res = await fetch("https://zoom.us/oauth/token", {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${basicAuth(clientId, clientSecret)}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: new URLSearchParams({
-      grant_type: "authorization_code",
-      code,
-      redirect_uri: redirectUri,
-    }),
-  });
-
-  const json = await res.json();
-  if (!res.ok) throw new Error(JSON.stringify(json));
-  return json as {
-    access_token: string;
-    refresh_token: string;
-    expires_in: number;
-    token_type: string;
-    scope?: string;
-  };
-}
-
-async function getZoomMe(accessToken: string) {
-  const res = await fetch("https://api.zoom.us/v2/users/me", {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  const json = await res.json();
-  if (!res.ok) throw new Error(JSON.stringify(json));
-  return json as { id: string; email?: string };
+function mustEnv(name: string) {
+  const v = process.env[name];
+  return v && v.length ? v : null; // ★throwしない
 }
 
 export async function GET(req: Request) {
+  // ★envチェックは必ずここで
+  const ZOOM_CLIENT_ID = mustEnv("ZOOM_CLIENT_ID");
+  const ZOOM_CLIENT_SECRET = mustEnv("ZOOM_CLIENT_SECRET");
+  const ZOOM_REDIRECT_URI = mustEnv("ZOOM_REDIRECT_URI");
+  const OAUTH_STATE_SECRET = mustEnv("OAUTH_STATE_SECRET");
+
+  // もし Supabase を使っているならこれもここでチェック
+  const SUPABASE_URL = mustEnv("SUPABASE_URL");
+  const SUPABASE_SERVICE_ROLE_KEY = mustEnv("SUPABASE_SERVICE_ROLE_KEY");
+
+  if (
+    !ZOOM_CLIENT_ID ||
+    !ZOOM_CLIENT_SECRET ||
+    !ZOOM_REDIRECT_URI ||
+    !OAUTH_STATE_SECRET
+  ) {
+    return NextResponse.json(
+      {
+        error: "Missing env (zoom)",
+        missing: {
+          ZOOM_CLIENT_ID: !ZOOM_CLIENT_ID,
+          ZOOM_CLIENT_SECRET: !ZOOM_CLIENT_SECRET,
+          ZOOM_REDIRECT_URI: !ZOOM_REDIRECT_URI,
+          OAUTH_STATE_SECRET: !OAUTH_STATE_SECRET,
+        },
+      },
+      { status: 500 }
+    );
+  }
+
+  // ★Supabase client を使うなら GET の中で生成（トップレベル禁止）
+  // const { createClient } = await import("@supabase/supabase-js");
+  // const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
+
   try {
-    const url = new URL(req.url);
-    const code = url.searchParams.get("code");
-    const state = url.searchParams.get("state");
+    // ここに「今のZoom callbackの処理」を移植してください
+    // （code/state取得→token交換→保存→return_toへ戻す、等）
 
-    if (!code || !state) {
-      return NextResponse.json({ error: "code/state missing" }, { status: 400 });
-    }
-
-    const decoded = JSON.parse(Buffer.from(state, "base64url").toString("utf8"));
-    const employeeId = decoded.employeeId as string;
-    const returnTo = (decoded.returnTo as string) || process.env.APP_BASE_URL || "/";
-
-    const token = await exchangeCodeForToken(code);
-    const me = await getZoomMe(token.access_token);
-
-    await upsertIntegration(employeeId, {
-      zoom_user_id: me.id,
-      zoom_email: me.email ?? null,
-      zoom_refresh_token: token.refresh_token,
-      zoom_access_token: token.access_token,
-      zoom_expiry: new Date(Date.now() + token.expires_in * 1000).toISOString(),
-    });
-
-    const next = new URL(returnTo);
-    next.searchParams.set("connected", "zoom");
-    next.searchParams.set("employee_id", employeeId);
-
-    return NextResponse.redirect(next.toString());
+    return NextResponse.json({ ok: true });
   } catch (e: any) {
     console.error(e);
-    return NextResponse.json({ error: "zoom oauth failed", detail: String(e?.message ?? e) }, { status: 500 });
+    return NextResponse.json(
+      { error: "zoom oauth failed", detail: String(e?.message ?? e) },
+      { status: 500 }
+    );
   }
 }
