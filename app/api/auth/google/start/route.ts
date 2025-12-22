@@ -7,27 +7,18 @@ export const dynamic = "force-dynamic";
 
 function mustEnv(name: string) {
   const v = process.env[name];
-  if (!v) return null;
-  return v;
+  return v && v.length ? v : null;
 }
 
-function base64url(input: Buffer | string) {
-  const b = Buffer.isBuffer(input) ? input : Buffer.from(input);
-  return b
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/g, "");
-}
-
-function signState(payloadB64Url: string, secret: string) {
-  return crypto
+function signState(payload: string, secret: string) {
+  const sig = crypto
     .createHmac("sha256", secret)
-    .update(payloadB64Url)
+    .update(payload)
     .digest("base64")
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
     .replace(/=+$/g, "");
+  return `${payload}.${sig}`;
 }
 
 export async function GET(req: Request) {
@@ -35,12 +26,14 @@ export async function GET(req: Request) {
   const REDIRECT_URI = mustEnv("GOOGLE_OAUTH_REDIRECT_URI");
   const STATE_SECRET = mustEnv("OAUTH_STATE_SECRET");
 
+  // return_to を固定したい場合のデフォルト（未設定なら / ）
+  const DEFAULT_RETURN_TO =
+    process.env.APP_RETURN_TO_URL || process.env.APP_BASE_URL || "/";
+
   if (!CLIENT_ID || !REDIRECT_URI || !STATE_SECRET) {
     return NextResponse.json(
       {
         error: "Missing env",
-        hint:
-          "Vercelの環境変数に GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_REDIRECT_URI / OAUTH_STATE_SECRET を設定して再デプロイしてください。",
         missing: {
           GOOGLE_OAUTH_CLIENT_ID: !!CLIENT_ID,
           GOOGLE_OAUTH_REDIRECT_URI: !!REDIRECT_URI,
@@ -51,44 +44,39 @@ export async function GET(req: Request) {
     );
   }
 
-  const { searchParams } = new URL(req.url);
+  const url = new URL(req.url);
+  const employeeId = url.searchParams.get("employee_id") || "";
+  const returnTo = url.searchParams.get("return_to") || DEFAULT_RETURN_TO;
 
-  // Bubbleから渡す想定
-  const employeeId = searchParams.get("employee_id") || "";
-  const returnTo = searchParams.get("return_to") || "";
-
-  if (!employeeId || !returnTo) {
-    return NextResponse.json(
-      { error: "employee_id / return_to missing" },
-      { status: 400 }
-    );
+  if (!employeeId) {
+    return NextResponse.json({ error: "employee_id required" }, { status: 400 });
   }
 
-  // state payload（署名対象）
+  // state payload（base64url）
   const payloadObj = {
     employee_id: employeeId,
     return_to: returnTo,
     ts: Date.now(),
     nonce: crypto.randomBytes(16).toString("hex"),
   };
+  const payload = Buffer.from(JSON.stringify(payloadObj)).toString("base64url");
+  const state = signState(payload, STATE_SECRET);
 
-  const payload = base64url(JSON.stringify(payloadObj));
-  const sig = signState(payload, STATE_SECRET);
-  const state = `${payload}.${sig}`;
-
-  // OAuth URL
   const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   authUrl.searchParams.set("client_id", CLIENT_ID);
   authUrl.searchParams.set("redirect_uri", REDIRECT_URI);
   authUrl.searchParams.set("response_type", "code");
-  authUrl.searchParams.set("access_type", "offline"); // refresh_token狙い
-  authUrl.searchParams.set("prompt", "consent"); // refresh_tokenが返らない事故対策
-  authUrl.searchParams.set("scope", [
-    "openid",
-    "email",
-    "profile",
-    "https://www.googleapis.com/auth/calendar",
-  ].join(" "));
+  authUrl.searchParams.set("access_type", "offline");
+  authUrl.searchParams.set("prompt", "consent"); // refresh_tokenを安定して取る
+  authUrl.searchParams.set(
+    "scope",
+    [
+      "openid",
+      "email",
+      "profile",
+      "https://www.googleapis.com/auth/calendar",
+    ].join(" ")
+  );
   authUrl.searchParams.set("state", state);
 
   return NextResponse.redirect(authUrl.toString());
