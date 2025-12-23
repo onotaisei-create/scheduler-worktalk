@@ -85,12 +85,14 @@ export async function POST(req: Request) {
         ? [{ email: body.candidateEmail, displayName: body.candidateName || undefined }]
         : [];
 
-    const gRes = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events?sendUpdates=all", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${googleToken}`,
-        "Content-Type": "application/json",
-      },
+    const gRes = await fetch(
+  "https://www.googleapis.com/calendar/v3/calendars/primary/events?sendUpdates=none",
+  {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${googleToken}`,
+      "Content-Type": "application/json",
+    },
       body: JSON.stringify({
         summary: body.title || "WorkTalk 面談",
         description: descriptionLines.join("\n"),
