@@ -17,7 +17,8 @@ type Body = {
 
 function requireApiKey(req: Request) {
   const expected = process.env.SCHEDULER_API_KEY;
-  const got = req.headers.get("x-scheduler-key");
+  const got = req.headers.get("x-scheduler-key") || req.headers.get("x-scheduler-api-key");
+
   if (!expected || got !== expected) {
     throw new Error("UNAUTHORIZED");
   }
