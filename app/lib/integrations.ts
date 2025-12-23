@@ -1,5 +1,5 @@
 // app/lib/integrations.ts
-import { supabaseAdmin } from "@/app/lib/supabaseAdmin";
+import { supabaseAdmin } from "./supabaseAdmin";
 
 export type Provider = "google" | "zoom";
 
@@ -13,25 +13,23 @@ export type IntegrationRow = {
 
   google_access_token: string | null;
   google_refresh_token: string | null;
-  google_expiry: string | null;
+  google_expiry: string | null; // ←あなたのテーブルは google_expiry（timestamptz）想定
   google_email: string | null;
   google_provider_user_id: string | null;
 
   zoom_access_token: string | null;
   zoom_refresh_token: string | null;
-  zoom_expiry: string | null;
+  zoom_expiry_ts: string | null; // ←テーブルにあるのは zoom_expiry_ts
   zoom_user_id: string | null;
   zoom_email: string | null;
 
   scopes: string | null;
-  created_at: string | null;
-  updated_at: string | null;
+
+  created_at: string;
+  updated_at: string;
 };
 
-// ✅ provider を必須にする（ここが今回のポイント）
-export type IntegrationUpsert =
-  { provider: Provider } &
-  Partial<Omit<IntegrationRow, "id" | "employee_id" | "provider">>;
+export type IntegrationUpsert = Partial<Omit<IntegrationRow, "id" | "employee_id" | "provider" | "created_at">>;
 
 export async function getIntegration(employeeId: string, provider: Provider) {
   const { data, error } = await supabaseAdmin
@@ -45,15 +43,12 @@ export async function getIntegration(employeeId: string, provider: Provider) {
   return data as IntegrationRow | null;
 }
 
-export async function upsertIntegration(employeeId: string, patch: IntegrationUpsert) {
-  // ✅ provider を一度取り出して、...patch で provider が上書きされないようにする
-  const { provider, ...rest } = patch;
-
+export async function upsertIntegration(employeeId: string, provider: Provider, patch: IntegrationUpsert) {
   const row = {
     employee_id: employeeId,
     provider,
-    ...rest,
-    updated_at: rest.updated_at ?? new Date().toISOString(),
+    ...patch,
+    updated_at: new Date().toISOString(),
   };
 
   const { data, error } = await supabaseAdmin

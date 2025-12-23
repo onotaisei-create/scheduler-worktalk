@@ -18,7 +18,6 @@ function toBase64Url(buf: Buffer) {
     .replace(/\//g, "_")
     .replace(/=+$/g, "");
 }
-
 function fromBase64Url(input: string) {
   const b64 = input.replace(/-/g, "+").replace(/_/g, "/");
   const pad = b64.length % 4 === 0 ? "" : "=".repeat(4 - (b64.length % 4));
@@ -70,7 +69,9 @@ function resolveReturnTo(req: Request, stateReturnTo?: string) {
       const isVersionTest = u.pathname.startsWith("/version-test/");
       const callPath = isVersionTest ? "/version-test/call" : "/call";
       return `${u.origin}${callPath}`;
-    } catch {}
+    } catch {
+      // ignore
+    }
   }
 
   try {
@@ -106,7 +107,6 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const code = searchParams.get("code");
     const state = searchParams.get("state") || "";
-
     if (!code) return NextResponse.json({ error: "code missing" }, { status: 400 });
 
     const parsed = verifyState(state, STATE_SECRET);
@@ -115,9 +115,8 @@ export async function GET(req: Request) {
     const employeeId = parsed.employee_id;
     const returnTo = resolveReturnTo(req, parsed.return_to);
 
-    const basic = Buffer.from(`${ZOOM_CLIENT_ID}:${ZOOM_CLIENT_SECRET}`).toString("base64");
-
     // code -> token
+    const basic = Buffer.from(`${ZOOM_CLIENT_ID}:${ZOOM_CLIENT_SECRET}`).toString("base64");
     const tokenRes = await fetch("https://zoom.us/oauth/token", {
       method: "POST",
       headers: {
@@ -133,18 +132,19 @@ export async function GET(req: Request) {
       cache: "no-store",
     });
 
-    const tokenJson = await tokenRes.json();
+    const tokenJson = await tokenRes.json().catch(async () => ({ raw: await tokenRes.text() }));
     if (!tokenRes.ok) {
       return NextResponse.json({ error: "token exchange failed", raw: tokenJson }, { status: 500 });
     }
 
-    const accessToken = String(tokenJson.access_token || "");
-    const refreshToken = String(tokenJson.refresh_token || "");
-    const expiresIn = Number(tokenJson.expires_in || 0);
-    const scope = String(tokenJson.scope || "");
+    const accessToken = String((tokenJson as any).access_token || "");
+    const refreshToken = String((tokenJson as any).refresh_token || "");
+    const expiresIn = Number((tokenJson as any).expires_in || 0);
+    const scope = String((tokenJson as any).scope || "");
+
     const expiryIso = new Date(Date.now() + expiresIn * 1000).toISOString();
 
-    // users/me で zoom user id / email を取る
+    // users/me で Zoom の user id / email を取る（NULL埋め）
     let zoomUserId = "";
     let zoomEmail = "";
     try {
@@ -161,21 +161,19 @@ export async function GET(req: Request) {
       // ignore
     }
 
-    // ✅ Supabaseへ upsert（employee_id + provider=zoom）
-    await upsertIntegration(employeeId, {
-      provider: "zoom",
+    // ✅ Supabaseへ保存（zoom_expiry_ts を使う）
+    await upsertIntegration(employeeId, "zoom", {
       provider_user_id: zoomUserId || null,
       email: zoomEmail || null,
 
       zoom_access_token: accessToken || null,
       zoom_refresh_token: refreshToken || null,
-      zoom_expiry: expiryIso,
+      zoom_expiry_ts: expiryIso,
 
       zoom_user_id: zoomUserId || null,
       zoom_email: zoomEmail || null,
 
       scopes: scope || null,
-      updated_at: new Date().toISOString(),
     });
 
     // call に戻す
