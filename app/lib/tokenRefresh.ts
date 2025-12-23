@@ -7,7 +7,8 @@ function isExpired(iso: string | null) {
 }
 
 export async function getGoogleAccessToken(employeeId: string) {
-  const integ = await getIntegration(employeeId);
+  // ✅ provider を指定
+  const integ = await getIntegration(employeeId, "google");
   if (!integ?.google_refresh_token) throw new Error("Google not connected for this employee");
 
   if (integ.google_access_token && !isExpired(integ.google_expiry)) {
@@ -31,12 +32,20 @@ export async function getGoogleAccessToken(employeeId: string) {
   const access = json.access_token as string;
   const exp = new Date(Date.now() + (json.expires_in as number) * 1000).toISOString();
 
-  await upsertIntegration(employeeId, { google_access_token: access, google_expiry: exp });
+  // ✅ provider を必ず入れる（upsert の onConflict に合わせる）
+  await upsertIntegration(employeeId, {
+    provider: "google",
+    google_access_token: access,
+    google_expiry: exp,
+    updated_at: new Date().toISOString(),
+  });
+
   return access;
 }
 
 export async function getZoomAccessToken(employeeId: string) {
-  const integ = await getIntegration(employeeId);
+  // ✅ provider を指定
+  const integ = await getIntegration(employeeId, "zoom");
   if (!integ?.zoom_refresh_token) throw new Error("Zoom not connected for this employee");
 
   if (integ.zoom_access_token && !isExpired(integ.zoom_expiry)) {
@@ -66,10 +75,13 @@ export async function getZoomAccessToken(employeeId: string) {
   const refresh = (json.refresh_token as string) || integ.zoom_refresh_token;
   const exp = new Date(Date.now() + (json.expires_in as number) * 1000).toISOString();
 
+  // ✅ provider を必ず入れる
   await upsertIntegration(employeeId, {
+    provider: "zoom",
     zoom_access_token: access,
     zoom_refresh_token: refresh,
     zoom_expiry: exp,
+    updated_at: new Date().toISOString(),
   });
 
   return access;
